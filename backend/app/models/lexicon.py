@@ -1,0 +1,109 @@
+"""Core lexical model.
+
+Data is organized around a Concept (a meaning). A Form is how one language variety
+expresses that concept; a Variety is a language, dialect group or local dialect
+(hierarchical via parent_id) and is spoken in one or more Regions.
+"""
+
+from geoalchemy2 import Geometry
+from sqlalchemy import Boolean, Column, ForeignKey, String, Table, Text, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base
+
+variety_region = Table(
+    "variety_region",
+    Base.metadata,
+    Column("variety_id", ForeignKey("variety.id", ondelete="CASCADE"), primary_key=True),
+    Column("region_id", ForeignKey("region.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+class Source(Base):
+    __tablename__ = "source"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), unique=True)
+    url: Mapped[str | None] = mapped_column(String(500))
+    license: Mapped[str] = mapped_column(String(100))
+
+
+class Concept(Base):
+    __tablename__ = "concept"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    gloss_en: Mapped[str] = mapped_column(String(200))
+    gloss_uk: Mapped[str | None] = mapped_column(String(200))
+    wikidata_id: Mapped[str | None] = mapped_column(String(20), unique=True)
+    category: Mapped[str | None] = mapped_column(String(50))
+
+    forms: Mapped[list["Form"]] = relationship(back_populates="concept")
+
+
+class Variety(Base):
+    __tablename__ = "variety"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name_en: Mapped[str] = mapped_column(String(200))
+    name_uk: Mapped[str | None] = mapped_column(String(200))
+    # language / dialect_group / dialect
+    kind: Mapped[str] = mapped_column(String(20), default="language")
+    iso639_3: Mapped[str | None] = mapped_column(String(3), index=True)
+    glottocode: Mapped[str | None] = mapped_column(String(8), unique=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("variety.id"))
+
+    parent: Mapped["Variety | None"] = relationship(remote_side=[id])
+    regions: Mapped[list["Region"]] = relationship(
+        secondary=variety_region, back_populates="varieties"
+    )
+
+
+class Region(Base):
+    __tablename__ = "region"
+    __table_args__ = (UniqueConstraint("level", "code"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name_en: Mapped[str] = mapped_column(String(200))
+    name_uk: Mapped[str | None] = mapped_column(String(200))
+    # country / adm1 / adm2
+    level: Mapped[str] = mapped_column(String(10))
+    # ISO 3166-1 alpha-3 for countries, geoBoundaries shapeID for subdivisions
+    code: Mapped[str] = mapped_column(String(50))
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("region.id"))
+    geom = mapped_column(Geometry("MULTIPOLYGON", srid=4326, spatial_index=True))
+
+    varieties: Mapped[list[Variety]] = relationship(
+        secondary=variety_region, back_populates="regions"
+    )
+
+
+class Form(Base):
+    __tablename__ = "form"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    concept_id: Mapped[int] = mapped_column(ForeignKey("concept.id"), index=True)
+    variety_id: Mapped[int] = mapped_column(ForeignKey("variety.id"), index=True)
+    spelling: Mapped[str] = mapped_column(String(200), index=True)
+    ipa: Mapped[str | None] = mapped_column(String(200))
+    transliteration: Mapped[str | None] = mapped_column(String(200))
+    note: Mapped[str | None] = mapped_column(Text)
+    source_id: Mapped[int | None] = mapped_column(ForeignKey("source.id"))
+
+    concept: Mapped[Concept] = relationship(back_populates="forms")
+    variety: Mapped[Variety] = relationship()
+    source: Mapped[Source | None] = relationship()
+    audio: Mapped[list["Audio"]] = relationship(back_populates="form")
+
+
+class Audio(Base):
+    __tablename__ = "audio"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    form_id: Mapped[int] = mapped_column(ForeignKey("form.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(String(500))
+    speaker: Mapped[str | None] = mapped_column(String(200))
+    is_synthetic: Mapped[bool] = mapped_column(Boolean, default=False)
+    license: Mapped[str] = mapped_column(String(100))
+    source_id: Mapped[int | None] = mapped_column(ForeignKey("source.id"))
+
+    form: Mapped[Form] = relationship(back_populates="audio")
