@@ -30,7 +30,9 @@ from app.models import Audio, Concept, Form, Region, Variety
 SPARQL_URL = "https://query.wikidata.org/sparql"
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 USER_AGENT = "Dialectio/0.1 (https://github.com/gmisha777/dialectio)"
-SWADESH_FILE = Path(__file__).parent / "data" / "swadesh_en.txt"
+DATA_DIR = Path(__file__).parent / "data"
+SWADESH_FILE = DATA_DIR / "swadesh_en.txt"
+EXCLUDED_FILE = DATA_DIR / "excluded_concepts.txt"
 
 # Keep only concepts that have a word in at least this many of our languages.
 MIN_LANGUAGES = 8
@@ -104,18 +106,36 @@ class WikimediaClient:
         ]
 
 
-def find_concepts(client: WikimediaClient, lemmas: list[str]) -> list[str]:
-    qids: set[str] = set()
+def read_list(path: Path) -> list[str]:
+    """Non-empty lines of a data file, without "#" comments."""
+    lines = (
+        line.split("#", 1)[0].strip() for line in path.read_text(encoding="utf-8").splitlines()
+    )
+    return [line for line in lines if line]
+
+
+def find_concepts(client: WikimediaClient, lemmas: list[str]) -> dict[str, str]:
+    """Return {concept qid: English lemma that led to it}, ordered by qid."""
+    found: dict[str, str] = {}
+    order = {lemma: i for i, lemma in enumerate(lemmas)}
     for batch in chunks(lemmas, 100):
         values = " ".join(f"{literal(lemma)}@en" for lemma in batch)
         rows = client.sparql(f"""
-            SELECT DISTINCT ?item WHERE {{
+            SELECT DISTINCT ?item ?lemma WHERE {{
               VALUES ?lemma {{ {values} }}
               ?lex dct:language wd:Q1860 ; wikibase:lemma ?lemma ;
                    ontolex:sense/wdt:P5137 ?item .
             }}""")
-        qids.update(entity_id(row["item"]) for row in rows)
-    return sorted(qids, key=lambda q: int(q[1:]))
+        for row in rows:
+            qid, lemma = entity_id(row["item"]), row["lemma"]
+            if qid not in found or order[lemma] < order[found[qid]]:
+                found[qid] = lemma
+    return dict(sorted(found.items(), key=lambda item: int(item[0][1:])))
+
+
+def usable_label(label: str | None) -> str | None:
+    # Numbers are labelled "1", "2", ... and some items have no label at all.
+    return label if label and not label.isdigit() else None
 
 
 def fetch_lexemes(
@@ -255,6 +275,27 @@ def ensure_one_primary(session: Session) -> int:
     return session.execute(ENSURE_PRIMARY).rowcount
 
 
+def remove_stale_concepts(session: Session, current: set[str]) -> tuple[int, list[Concept]]:
+    """Delete Wikidata concepts that are no longer imported (excluded or too little coverage).
+
+    Runs after this source's forms were replaced, so remaining forms come from other sources;
+    concepts that still have such forms are kept.
+    """
+    removed = 0
+    kept: list[Concept] = []
+    stale = session.scalars(
+        select(Concept).where(Concept.wikidata_id.is_not(None), Concept.wikidata_id.not_in(current))
+    )
+    for concept in stale:
+        if concept.forms:
+            kept.append(concept)
+        else:
+            session.delete(concept)
+            removed += 1
+    session.flush()
+    return removed, kept
+
+
 def upsert_varieties(session: Session) -> dict[str, Variety]:
     regions = {r.code: r for r in session.scalars(select(Region).where(Region.level == "country"))}
     varieties: dict[str, Variety] = {}
@@ -278,15 +319,13 @@ def upsert_varieties(session: Session) -> dict[str, Variety]:
 
 def main() -> None:
     client = WikimediaClient()
-    lemmas = [
-        line.strip()
-        for line in SWADESH_FILE.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.startswith("#")
-    ]
+    lemmas = read_list(SWADESH_FILE)
+    excluded = set(read_list(EXCLUDED_FILE))
 
     print(f"Looking up concepts for {len(lemmas)} English lemmas ...")
-    candidate_qids = find_concepts(client, lemmas)
-    print(f"  {len(candidate_qids)} candidate concepts")
+    lemma_by_qid = find_concepts(client, lemmas)
+    candidate_qids = [qid for qid in lemma_by_qid if qid not in excluded]
+    print(f"  {len(candidate_qids)} candidate concepts ({len(excluded)} excluded by list)")
 
     print("Fetching lexemes ...")
     lexemes = fetch_lexemes(client, candidate_qids, LANGUAGES)
@@ -330,8 +369,8 @@ def main() -> None:
                 concept = Concept(wikidata_id=qid, category="swadesh")
                 session.add(concept)
             entry = labels.get(qid, {})
-            concept.gloss_en = entry.get("label_en", qid)[:200]
-            concept.gloss_uk = entry.get("label_uk")
+            concept.gloss_en = (usable_label(entry.get("label_en")) or lemma_by_qid[qid])[:200]
+            concept.gloss_uk = usable_label(entry.get("label_uk"))
             concept.description_en = (entry.get("description_en") or "")[:500] or None
             concept.description_uk = (entry.get("description_uk") or "")[:500] or None
             concepts[qid] = concept
@@ -383,6 +422,14 @@ def main() -> None:
                 form_count += 1
 
         session.flush()
+        removed, kept = remove_stale_concepts(session, set(qids))
+        if removed:
+            print(f"  removed {removed} concepts no longer imported")
+        for concept in kept:
+            print(
+                f"  warning: {concept.wikidata_id} ({concept.gloss_en}) is no longer imported "
+                "but has words from other sources; kept"
+            )
         promoted = ensure_one_primary(session)
         session.commit()
 

@@ -1,0 +1,28 @@
+# Wikidata items found via Swadesh lemmas that are off-topic for basic vocabulary
+# (slang, technical senses, duplicates). One Q-id per line, comment after "#".
+Q41576     # cocaine ("blow", "snow")
+Q8401      # fellatio ("blow")
+Q3519259   # count, noble title
+Q944038    # neck of a string instrument
+Q1125776   # wing of a building
+Q1172934   # wing (other sense)
+Q20078304  # planform ("wing")
+Q25379     # play, theatre
+Q826930    # heart symbol
+Q3419242   # hearts, card suit
+Q23595     # center ("heart")
+Q3710      # foot, unit of length
+Q218593    # inch ("in")
+Q959782    # archaeological excavation ("dig")
+Q33999     # actor
+Q1251441   # leader ("head")
+Q45089     # dice ("die")
+Q780687    # rights ("right")
+Q12125     # common cold ("cold")
+Q2537      # natural satellite (duplicate of Moon)
+Q1191504   # star (other sense)
+Q15982595  # star (other sense)
+Q29053744  # liquid water (duplicate of water)
+Q93189     # egg as food (duplicate of egg)
+Q600396    # fish as food (duplicate of fish)
+Q12370     # salts, chemistry (table salt is kept)
