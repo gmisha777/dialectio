@@ -34,6 +34,8 @@ class Concept(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     gloss_en: Mapped[str] = mapped_column(String(200))
     gloss_uk: Mapped[str | None] = mapped_column(String(200))
+    description_en: Mapped[str | None] = mapped_column(String(500))
+    description_uk: Mapped[str | None] = mapped_column(String(500))
     wikidata_id: Mapped[str | None] = mapped_column(String(20), unique=True)
     category: Mapped[str | None] = mapped_column(String(50))
 
@@ -50,6 +52,7 @@ class Variety(Base):
     kind: Mapped[str] = mapped_column(String(20), default="language")
     iso639_3: Mapped[str | None] = mapped_column(String(3), index=True)
     glottocode: Mapped[str | None] = mapped_column(String(8), unique=True)
+    wikidata_id: Mapped[str | None] = mapped_column(String(20), unique=True)
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("variety.id"))
 
     parent: Mapped["Variety | None"] = relationship(remote_side=[id])
@@ -79,6 +82,7 @@ class Region(Base):
 
 class Form(Base):
     __tablename__ = "form"
+    __table_args__ = (UniqueConstraint("concept_id", "variety_id", "spelling"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     concept_id: Mapped[int] = mapped_column(ForeignKey("concept.id"), index=True)
@@ -87,6 +91,10 @@ class Form(Base):
     ipa: Mapped[str | None] = mapped_column(String(200))
     transliteration: Mapped[str | None] = mapped_column(String(200))
     note: Mapped[str | None] = mapped_column(Text)
+    # The main word for this concept in this variety; others are synonyms or rarer variants.
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Id in the source dataset, e.g. a Wikidata lexeme "L2071"
+    external_id: Mapped[str | None] = mapped_column(String(50))
     source_id: Mapped[int | None] = mapped_column(ForeignKey("source.id"))
 
     concept: Mapped[Concept] = relationship(back_populates="forms")
@@ -97,6 +105,7 @@ class Form(Base):
 
 class Audio(Base):
     __tablename__ = "audio"
+    __table_args__ = (UniqueConstraint("form_id", "url"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     form_id: Mapped[int] = mapped_column(ForeignKey("form.id", ondelete="CASCADE"), index=True)
@@ -107,3 +116,4 @@ class Audio(Base):
     source_id: Mapped[int | None] = mapped_column(ForeignKey("source.id"))
 
     form: Mapped[Form] = relationship(back_populates="audio")
+    source: Mapped[Source | None] = relationship()
