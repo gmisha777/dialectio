@@ -1,6 +1,7 @@
 from logging.config import fileConfig
 
 from alembic import context
+from geoalchemy2 import alembic_helpers
 from sqlalchemy import engine_from_config, pool
 
 from app.config import settings
@@ -22,12 +23,14 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
-# Tables created by the PostGIS extension, not by our models.
-POSTGIS_TABLES = {"spatial_ref_sys", "geography_columns", "geometry_columns"}
-
 
 def include_object(obj, name, type_, reflected, compare_to):
-    return not (type_ == "table" and reflected and compare_to is None and name in POSTGIS_TABLES)
+    # The PostGIS image ships extension tables (spatial_ref_sys, tiger geocoder, topology).
+    # Only manage tables declared in our models; dropping a model table therefore needs a
+    # hand-written op.drop_table() in the migration.
+    if type_ == "table" and reflected and compare_to is None:
+        return False
+    return alembic_helpers.include_object(obj, name, type_, reflected, compare_to)
 
 
 # other values from the config, defined by the needs of env.py,
@@ -53,6 +56,8 @@ def run_migrations_offline() -> None:
         url=url,
         target_metadata=target_metadata,
         include_object=include_object,
+        process_revision_directives=alembic_helpers.writer,
+        render_item=alembic_helpers.render_item,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -79,6 +84,8 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             include_object=include_object,
+            process_revision_directives=alembic_helpers.writer,
+            render_item=alembic_helpers.render_item,
         )
 
         with context.begin_transaction():

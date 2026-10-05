@@ -30,12 +30,12 @@
 - [x] Git-репозиторій, структура монорепо
 - [x] docker-compose з PostGIS
 - [x] Встановити Node.js, uv, gh
-- [ ] Встановити WSL2 + Docker Desktop
+- [x] Встановити WSL2 + Docker Desktop
 - [x] Каркас backend (FastAPI, uv, ruff, pytest)
 - [x] Каркас frontend (Next.js + MapLibre)
 - [ ] i18n інтерфейсу (next-intl: uk, en)
 - [x] Моделі БД (SQLAlchemy) + налаштування Alembic
-- [ ] Перша міграція (потрібен Docker з PostGIS)
+- [x] Перша міграція (PostGIS + pg_trgm)
 
 ### Етап 1 — MVP «мови світу»
 - [ ] Імпорт меж країн (geoBoundaries / Natural Earth)
