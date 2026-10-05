@@ -23,7 +23,7 @@ Full plan and decisions: [docs/plan.md](docs/plan.md). Communicate with the user
 - Backend (from `backend/`): `uv sync`, `uv run uvicorn app.main:app --reload`, `uv run pytest`, `uv run ruff check .`
 - Import countries (from `backend/`): `uv run python -m app.importers.natural_earth`; restart the API afterwards (country vector tiles are cached in memory)
 - Word editor: `/uk/editor`, token = `EDITOR_TOKEN` in `.env`; editor words use source "Dialectio editors" and survive Wikidata re-imports
-- Import words (from `backend/`, after countries): `uv run python -m app.importers.wikidata_lexemes` (~5 min, re-runnable)
+- Import words (from `backend/`, after countries): `uv run python -m app.importers.wikidata_lexemes` (~10 min, re-runnable); word lists and exclusions live in `backend/app/importers/data/`
 - Migrations (from `backend/`): `uv run alembic revision --autogenerate -m "..."`, `uv run alembic upgrade head`
 - Frontend (from `frontend/`): `npm install`, `npm run dev`, `npm run lint`, `npm run build`
 - `uvicorn --reload` on Windows sometimes misses file changes: if the API serves old code, restart it

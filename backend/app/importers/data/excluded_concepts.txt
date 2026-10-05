@@ -26,3 +26,45 @@ Q29053744  # liquid water (duplicate of water)
 Q93189     # egg as food (duplicate of egg)
 Q600396    # fish as food (duplicate of fish)
 Q12370     # salts, chemistry (table salt is kept)
+
+# From the everyday list
+Q209426    # arcminute ("minute")
+Q478515    # ball, dance party
+Q245249    # butterfly stroke
+Q864693    # chicken as food (duplicate of chicken)
+Q483634    # clothes iron
+Q7987      # computer mouse
+Q852835    # customer ("guest")
+Q468777    # existence ("life")
+Q35409     # family, taxonomic rank
+Q44602     # fasting ("fast")
+Q25265     # Felidae (duplicate of cat)
+Q1047113   # field of study
+Q223930    # game, hunted animals
+Q208826    # height ("high")
+Q192130    # horseshoe ("shoe")
+Q285783    # intersection
+Q192581    # job activity (duplicate of work)
+Q516114    # king, playing card
+Q138       # king, chess piece
+Q139       # queen, chess piece
+Q505744    # queen, playing card
+Q34770     # language, a particular one (general "language" is kept)
+Q25618328  # maize as food (duplicate of maize)
+Q39275     # Mus (duplicate of mouse)
+Q27022     # Equus (duplicate of horse)
+Q11788     # Ursidae (duplicate of bear)
+Q10798     # Sus (duplicate of pig)
+Q25237     # Pisum sativum (duplicate of pea)
+Q10998     # potato plant species (potato as food is kept)
+Q190977    # nut, fastener
+Q2085381   # publishing house ("house")
+Q1387659   # school of thought
+Q21075690  # solution ("answer")
+Q102836    # spring, mechanical device
+Q679300    # steering wheel
+Q1142905   # trunk of a car ("boot")
+Q2547819   # wall (duplicate sense)
+Q42213     # work, physics
+Q386724    # work, creation
+Q1189047   # romantic love (duplicate of love)

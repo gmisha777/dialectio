@@ -32,7 +32,12 @@ SPARQL_URL = "https://query.wikidata.org/sparql"
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 USER_AGENT = "Dialectio/0.1 (https://github.com/gmisha777/dialectio)"
 DATA_DIR = Path(__file__).parent / "data"
-SWADESH_FILE = DATA_DIR / "swadesh_en.txt"
+# English word lists that seed concepts, as (concept category, file). Earlier lists win when
+# the same concept is reached from several lists.
+WORD_LISTS = (
+    ("swadesh", DATA_DIR / "swadesh_en.txt"),
+    ("everyday", DATA_DIR / "everyday_en.txt"),
+)
 EXCLUDED_FILE = DATA_DIR / "excluded_concepts.txt"
 
 # Keep only concepts that have a word in at least this many of our languages.
@@ -132,6 +137,18 @@ def find_concepts(client: WikimediaClient, lemmas: list[str]) -> dict[str, str]:
             if qid not in found or order[lemma] < order[found[qid]]:
                 found[qid] = lemma
     return dict(sorted(found.items(), key=lambda item: int(item[0][1:])))
+
+
+def english_gloss(label: str | None, lemma: str) -> str:
+    """The concept's English label, or the word that led to it when the label is unusable.
+
+    Taxa are labelled with Latin names ("Camelus", "Quercus"); a capitalised label for a
+    lowercase lemma is treated as one and replaced by the plain word ("camel", "oak").
+    Proper nouns like "January" match their lemma and are kept.
+    """
+    if not label or (label.lower() != lemma.lower() and label[0].isupper() and lemma[0].islower()):
+        return lemma[:200]
+    return label[:200]
 
 
 def usable_label(label: str | None) -> str | None:
@@ -320,11 +337,16 @@ def upsert_varieties(session: Session) -> dict[str, Variety]:
 
 def main() -> None:
     client = WikimediaClient()
-    lemmas = read_list(SWADESH_FILE)
     excluded = set(read_list(EXCLUDED_FILE))
-
-    print(f"Looking up concepts for {len(lemmas)} English lemmas ...")
-    lemma_by_qid = find_concepts(client, lemmas)
+    lemma_by_qid: dict[str, str] = {}
+    category_by_qid: dict[str, str] = {}
+    for category, path in WORD_LISTS:
+        lemmas = read_list(path)
+        print(f"Looking up concepts for {len(lemmas)} English lemmas ({category}) ...")
+        for qid, lemma in find_concepts(client, lemmas).items():
+            if qid not in lemma_by_qid:
+                lemma_by_qid[qid] = lemma
+                category_by_qid[qid] = category
     candidate_qids = [qid for qid in lemma_by_qid if qid not in excluded]
     print(f"  {len(candidate_qids)} candidate concepts ({len(excluded)} excluded by list)")
 
@@ -367,10 +389,10 @@ def main() -> None:
         for qid in qids:
             concept = session.scalar(select(Concept).where(Concept.wikidata_id == qid))
             if concept is None:
-                concept = Concept(wikidata_id=qid, category="swadesh")
+                concept = Concept(wikidata_id=qid, category=category_by_qid[qid])
                 session.add(concept)
             entry = labels.get(qid, {})
-            concept.gloss_en = (usable_label(entry.get("label_en")) or lemma_by_qid[qid])[:200]
+            concept.gloss_en = english_gloss(usable_label(entry.get("label_en")), lemma_by_qid[qid])
             concept.gloss_uk = usable_label(entry.get("label_uk"))
             concept.description_en = (entry.get("description_en") or "")[:500] or None
             concept.description_uk = (entry.get("description_uk") or "")[:500] or None
