@@ -6,7 +6,7 @@ Full plan and decisions: [docs/plan.md](docs/plan.md). Communicate with the user
 ## Layout
 - `backend/` — FastAPI (Python 3.11+, managed with uv), SQLAlchemy + Alembic, PostgreSQL/PostGIS
 - `frontend/` — Next.js (TypeScript) + MapLibre GL, i18n (uk, en)
-- `data/scripts/` — import scripts for open data (Wiktionary, Wikidata, geoBoundaries)
+- `backend/app/importers/` — import scripts for open data (run as `uv run python -m app.importers.<name>`); downloads go to git-ignored `data/raw/`
 - `docs/` — plan and design notes
 
 ## Conventions
@@ -20,6 +20,7 @@ Full plan and decisions: [docs/plan.md](docs/plan.md). Communicate with the user
 ## Commands
 - Start DB: `docker compose up -d db`
 - Backend (from `backend/`): `uv sync`, `uv run uvicorn app.main:app --reload`, `uv run pytest`, `uv run ruff check .`
+- Import countries (from `backend/`): `uv run python -m app.importers.natural_earth`
 - Migrations (from `backend/`): `uv run alembic revision --autogenerate -m "..."`, `uv run alembic upgrade head`
 - Frontend (from `frontend/`): `npm install`, `npm run dev`, `npm run lint`, `npm run build`
 - Next.js 16 has breaking changes vs older versions: check `frontend/node_modules/next/dist/docs/` before writing frontend code.
