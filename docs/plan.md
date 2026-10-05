@@ -33,7 +33,7 @@
 - [x] Встановити WSL2 + Docker Desktop
 - [x] Каркас backend (FastAPI, uv, ruff, pytest)
 - [x] Каркас frontend (Next.js + MapLibre)
-- [ ] i18n інтерфейсу (next-intl: uk, en)
+- [x] i18n інтерфейсу (next-intl: uk, en)
 - [x] Моделі БД (SQLAlchemy) + налаштування Alembic
 - [x] Перша міграція (PostGIS + pg_trgm)
 

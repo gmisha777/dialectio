@@ -1,0 +1,10 @@
+{
+  "Metadata": {
+    "description": "How words are written, pronounced and sound across languages and dialects"
+  },
+  "Header": {
+    "searchPlaceholder": "Type a word…",
+    "searchLabel": "Search for a word",
+    "language": "Interface language"
+  }
+}

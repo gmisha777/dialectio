@@ -14,6 +14,7 @@ Full plan and decisions: [docs/plan.md](docs/plan.md). Communicate with the user
 - Every imported record must keep its `Source` (name, url, license).
 - Synthetic (TTS) audio must be flagged `is_synthetic`.
 - Use only free/open data sources and libraries; no Google Maps.
+- UI strings live in `frontend/messages/{uk,en}.json` (next-intl); routes are prefixed with the locale (`/uk`, `/en`), default `uk`. Never hardcode UI text in components.
 - Do not `git push` without discussing with the user first.
 
 ## Commands
