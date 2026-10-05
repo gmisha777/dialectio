@@ -23,5 +23,24 @@
     "play": "Прослухати вимову {n}",
     "synthetic": "синтезований голос",
     "attribution": "Слова: <wikidata>Wikidata</wikidata> (CC0). Аудіо: <commons>Wikimedia Commons</commons>, ліцензія й автор — у підказці кнопки ▶."
+  },
+  "Editor": {
+    "title": "Редактор слів: українська",
+    "intro": "Додайте українське слово для кожного поняття. Підказки показують, як це слово звучить іншими мовами. IPA — необов'язково.",
+    "tokenPlaceholder": "Токен редактора (EDITOR_TOKEN з .env)",
+    "login": "Увійти",
+    "badToken": "Невірний токен.",
+    "disabled": "Редагування вимкнене: задайте EDITOR_TOKEN у .env і перезапустіть backend.",
+    "loadError": "Не вдалося завантажити поняття. Чи запущений backend?",
+    "progress": "Заповнено: {done} з {total}",
+    "onlyMissing": "Лише без українського слова",
+    "filterPlaceholder": "Фільтр…",
+    "wordPlaceholder": "Слово",
+    "ipaPlaceholder": "IPA",
+    "add": "Додати",
+    "delete": "Видалити «{word}»",
+    "duplicate": "Таке слово вже є.",
+    "saveError": "Не вдалося зберегти. Спробуйте ще раз.",
+    "allDone": "Тут нічого не залишилось — усе заповнено."
   }
 }

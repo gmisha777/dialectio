@@ -23,5 +23,24 @@
     "play": "Play pronunciation {n}",
     "synthetic": "synthetic voice",
     "attribution": "Words: <wikidata>Wikidata</wikidata> (CC0). Audio: <commons>Wikimedia Commons</commons>; license and author are in the ▶ button tooltip."
+  },
+  "Editor": {
+    "title": "Word editor: Ukrainian",
+    "intro": "Add the Ukrainian word for each concept. Hints show the word in other languages. IPA is optional.",
+    "tokenPlaceholder": "Editor token (EDITOR_TOKEN from .env)",
+    "login": "Sign in",
+    "badToken": "Invalid token.",
+    "disabled": "Editing is disabled: set EDITOR_TOKEN in .env and restart the backend.",
+    "loadError": "Could not load concepts. Is the backend running?",
+    "progress": "Filled: {done} of {total}",
+    "onlyMissing": "Only without a Ukrainian word",
+    "filterPlaceholder": "Filter…",
+    "wordPlaceholder": "Word",
+    "ipaPlaceholder": "IPA",
+    "add": "Add",
+    "delete": "Delete “{word}”",
+    "duplicate": "This word already exists.",
+    "saveError": "Could not save. Please try again.",
+    "allDone": "Nothing left here — all filled in."
   }
 }

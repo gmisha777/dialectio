@@ -19,7 +19,7 @@ from typing import TypeVar
 from urllib.parse import unquote
 
 import httpx2
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
@@ -240,6 +240,21 @@ def pick_primary(lexemes: Iterable[Lexeme]) -> Lexeme:
     return min(lexemes, key=lambda lx: (not lx.audio_files, not lx.ipas, lx.number))
 
 
+ENSURE_PRIMARY = text("""
+    UPDATE form SET is_primary = true
+    WHERE id IN (
+        SELECT min(id) FROM form
+        GROUP BY concept_id, variety_id
+        HAVING NOT bool_or(is_primary)
+    )
+""")
+
+
+def ensure_one_primary(session: Session) -> int:
+    """Give every (concept, language) without a primary form its oldest form as primary."""
+    return session.execute(ENSURE_PRIMARY).rowcount
+
+
 def upsert_varieties(session: Session) -> dict[str, Variety]:
     regions = {r.code: r for r in session.scalars(select(Region).where(Region.level == "country"))}
     varieties: dict[str, Variety] = {}
@@ -323,13 +338,22 @@ def main() -> None:
         session.flush()
 
         session.execute(delete(Form).where(Form.source_id == wikidata.id))
+        session.flush()
+
+        # Words from other sources (e.g. our editors) are kept: don't duplicate their spelling
+        # and don't add a second primary form next to theirs.
+        other_forms: dict[tuple[int, int], list[Form]] = defaultdict(list)
+        for form in session.scalars(select(Form)):
+            other_forms[(form.concept_id, form.variety_id)].append(form)
 
         form_count = audio_count = 0
         for (qid, lang_qid), by_id in lexemes.items():
             if qid not in concepts:
                 continue
+            existing = other_forms[(concepts[qid].id, varieties[lang_qid].id)]
+            has_primary = any(f.is_primary for f in existing)
             primary = pick_primary(by_id.values())
-            seen_spellings: set[str] = set()
+            seen_spellings = {f.spelling for f in existing}
             for lexeme in sorted(by_id.values(), key=lambda lx: lx is not primary):
                 if lexeme.lemma in seen_spellings:
                     continue
@@ -339,7 +363,7 @@ def main() -> None:
                     variety=varieties[lang_qid],
                     spelling=lexeme.lemma[:200],
                     ipa=lexeme.ipas[0][:200] if lexeme.ipas else None,
-                    is_primary=lexeme is primary,
+                    is_primary=lexeme is primary and not has_primary,
                     external_id=lexeme.lexeme_id,
                     source=wikidata,
                 )
@@ -358,8 +382,12 @@ def main() -> None:
                 session.add(form)
                 form_count += 1
 
+        session.flush()
+        promoted = ensure_one_primary(session)
         session.commit()
 
+    if promoted:
+        print(f"  promoted {promoted} forms to primary")
     print(
         f"Imported {len(concepts)} concepts, {form_count} forms, {audio_count} audio files "
         f"in {len(varieties)} languages."
