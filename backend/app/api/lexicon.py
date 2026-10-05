@@ -46,24 +46,30 @@ SEARCH = text("""
              is_primary DESC
 """)
 
+# Label points: the region's curated label point (falls back to a point inside the region),
+# with rank (lower = more important) so the map can hide less important overlapping labels.
 LABELS = text("""
     SELECT json_build_object(
         'type', 'FeatureCollection',
         'features', coalesce(json_agg(json_build_object(
             'type', 'Feature',
             'properties', json_build_object(
-                'code', code, 'text', spellings, 'name_en', name_en, 'name_uk', name_uk),
-            'geometry', ST_AsGeoJSON(ST_PointOnSurface(geom), 3)::json
-        )), '[]'::json)
+                'code', code, 'text', spellings, 'name_en', name_en, 'name_uk', name_uk,
+                'rank', rank),
+            'geometry', ST_AsGeoJSON(point, 3)::json
+        ) ORDER BY rank, area DESC), '[]'::json)
     )::text
     FROM (
-        SELECT r.code, r.name_en, r.name_uk, r.geom,
+        SELECT r.code, r.name_en, r.name_uk,
+               coalesce(r.label_point, ST_PointOnSurface(r.geom)) AS point,
+               coalesce(r.label_rank, 10) AS rank,
+               ST_Area(r.geom) AS area,
                string_agg(DISTINCT f.spelling, ' / ') AS spellings
         FROM form f
         JOIN variety_region vr ON vr.variety_id = f.variety_id
         JOIN region r ON r.id = vr.region_id
         WHERE f.concept_id = :concept_id AND f.is_primary
-        GROUP BY r.code, r.name_en, r.name_uk, r.geom
+        GROUP BY r.id
     ) labelled
 """)
 

@@ -64,8 +64,24 @@ def test_concept_detail_404() -> None:
     assert client.get("/api/concepts/999999999").status_code == 404
 
 
-def test_countries_geojson() -> None:
-    response = client.get("/api/regions/countries.geojson")
+def test_country_vector_tile() -> None:
+    response = client.get("/api/regions/countries/0/0/0.mvt")
     assert response.status_code == 200
-    codes = {f["properties"]["code"] for f in response.json()["features"]}
-    assert {"UKR", "FRA", "NOR"} <= codes
+    assert response.headers["content-type"] == "application/vnd.mapbox-vector-tile"
+    assert len(response.content) > 1000
+    # Layer name and attribute names are stored as strings inside the protobuf
+    assert b"countries" in response.content and b"UKR" in response.content
+
+
+def test_vector_tile_out_of_range() -> None:
+    assert client.get("/api/regions/countries/1/2/0.mvt").status_code == 404
+
+
+def test_labels_use_curated_point_and_rank() -> None:
+    concept_id = search("water")[0]["concept"]["id"]
+    labels = client.get(f"/api/concepts/{concept_id}").json()["labels"]["features"]
+    russia = next(f for f in labels if f["properties"]["code"] == "RUS")
+    lng, lat = russia["geometry"]["coordinates"]
+    assert lng < 60  # European Russia, not the middle of Siberia
+    ranks = [f["properties"]["rank"] for f in labels]
+    assert ranks == sorted(ranks)

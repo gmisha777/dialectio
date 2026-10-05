@@ -6,7 +6,16 @@ expresses that concept; a Variety is a language, dialect group or local dialect
 """
 
 from geoalchemy2 import Geometry
-from sqlalchemy import Boolean, Column, ForeignKey, String, Table, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    ForeignKey,
+    SmallInteger,
+    String,
+    Table,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -74,6 +83,10 @@ class Region(Base):
     code: Mapped[str] = mapped_column(String(50))
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("region.id"))
     geom = mapped_column(Geometry("MULTIPOLYGON", srid=4326, spatial_index=True))
+    # Where to put the region's map label (curated by the source, e.g. Natural Earth LABEL_X/Y)
+    label_point = mapped_column(Geometry("POINT", srid=4326, spatial_index=False))
+    # Label importance, lower = more important (Natural Earth LABELRANK)
+    label_rank: Mapped[int | None] = mapped_column(SmallInteger)
 
     varieties: Mapped[list[Variety]] = relationship(
         secondary=variety_region, back_populates="regions"

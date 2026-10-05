@@ -31,7 +31,13 @@ const OSM_STYLE: StyleSpecification = {
 // Served from public/, see scripts/copy-maplibre-worker.mjs
 const WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 
+// Layer name inside the vector tiles served by /api/regions/countries/{z}/{x}/{y}.mvt
+const COUNTRIES_LAYER = "countries";
+
 type CountryProps = { code: string; name_en: string; name_uk: string | null };
+
+// Minimum free space between two visible word labels, in pixels.
+const LABEL_GAP = 2;
 
 const codeFilter = (codes: string[]): FilterSpecification => [
   "in",
@@ -84,13 +90,15 @@ export default function WorldMap({
 
       m.on("load", () => {
         m.addSource("countries", {
-          type: "geojson",
-          data: `${API_URL}/api/regions/countries.geojson`,
+          type: "vector",
+          tiles: [`${API_URL}/api/regions/countries/{z}/{x}/{y}.mvt`],
+          maxzoom: 10,
         });
         m.addLayer({
           id: "countries-fill",
           type: "fill",
           source: "countries",
+          "source-layer": COUNTRIES_LAYER,
           paint: {
             "fill-color": "#94a3b8",
             "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.3, 0.05],
@@ -100,6 +108,7 @@ export default function WorldMap({
           id: "countries-highlight",
           type: "fill",
           source: "countries",
+          "source-layer": COUNTRIES_LAYER,
           filter: codeFilter([]),
           paint: { "fill-color": "#2563eb", "fill-opacity": 0.35 },
         });
@@ -107,12 +116,14 @@ export default function WorldMap({
           id: "countries-line",
           type: "line",
           source: "countries",
+          "source-layer": COUNTRIES_LAYER,
           paint: { "line-color": "#1e3a8a", "line-width": 0.6, "line-opacity": 0.5 },
         });
         m.addLayer({
           id: "countries-selected",
           type: "line",
           source: "countries",
+          "source-layer": COUNTRIES_LAYER,
           filter: codeFilter([]),
           paint: { "line-color": "#f59e0b", "line-width": 3 },
         });
@@ -120,11 +131,11 @@ export default function WorldMap({
         let hoveredId: string | number | undefined;
         const setHover = (feature: MapGeoJSONFeature | undefined) => {
           if (hoveredId !== undefined) {
-            m.setFeatureState({ source: "countries", id: hoveredId }, { hover: false });
+            m.setFeatureState({ source: "countries", sourceLayer: COUNTRIES_LAYER, id: hoveredId }, { hover: false });
           }
           hoveredId = feature?.id;
           if (hoveredId !== undefined) {
-            m.setFeatureState({ source: "countries", id: hoveredId }, { hover: true });
+            m.setFeatureState({ source: "countries", sourceLayer: COUNTRIES_LAYER, id: hoveredId }, { hover: true });
           }
           setHovered(feature ? (feature.properties as CountryProps) : null);
           m.getCanvas().style.cursor = feature ? "pointer" : "";
@@ -181,6 +192,31 @@ export default function WorldMap({
       const [lng, lat] = feature.geometry.coordinates;
       return new MarkerClass({ element: el }).setLngLat([lng, lat]).addTo(m);
     });
+
+    // Labels arrive ordered by importance; hide any label that would overlap a more
+    // important one. Overlaps only change with zoom, so re-check on zoom, not on pan.
+    const declutter = () => {
+      const shown: DOMRect[] = [];
+      for (const marker of markersRef.current) {
+        const el = marker.getElement();
+        el.style.visibility = "visible";
+        const rect = el.getBoundingClientRect();
+        const overlaps = shown.some(
+          (r) =>
+            rect.left < r.right + LABEL_GAP &&
+            rect.right + LABEL_GAP > r.left &&
+            rect.top < r.bottom + LABEL_GAP &&
+            rect.bottom + LABEL_GAP > r.top,
+        );
+        if (overlaps) el.style.visibility = "hidden";
+        else shown.push(rect);
+      }
+    };
+    declutter();
+    m.on("zoomend", declutter);
+    return () => {
+      m.off("zoomend", declutter);
+    };
   }, [loaded, labels]);
 
   const hoveredName = hovered && localized(locale, hovered.name_en, hovered.name_uk);

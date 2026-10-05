@@ -43,7 +43,14 @@ export type LanguageForms = {
   forms: Form[];
 };
 
-export type LabelProps = { code: string; text: string; name_en: string; name_uk: string | null };
+export type LabelProps = {
+  code: string;
+  text: string;
+  name_en: string;
+  name_uk: string | null;
+  /** Label importance, lower = more important; labels arrive sorted by it. */
+  rank: number;
+};
 
 export type ConceptDetail = ConceptSummary & {
   languages: LanguageForms[];

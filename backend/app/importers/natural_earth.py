@@ -20,12 +20,14 @@ SOURCE_URL = "https://www.naturalearthdata.com/"
 SOURCE_LICENSE = "Public domain"
 
 UPSERT_REGION = text("""
-    INSERT INTO region (name_en, name_uk, level, code, geom)
+    INSERT INTO region (name_en, name_uk, level, code, geom, label_point, label_rank)
     VALUES (:name_en, :name_uk, 'country', :code,
             ST_Multi(ST_CollectionExtract(ST_MakeValid(
-                ST_SetSRID(ST_GeomFromGeoJSON(:geojson), 4326)), 3)))
+                ST_SetSRID(ST_GeomFromGeoJSON(:geojson), 4326)), 3)),
+            ST_SetSRID(ST_MakePoint(:label_x, :label_y), 4326), :label_rank)
     ON CONFLICT (level, code) DO UPDATE
-    SET name_en = EXCLUDED.name_en, name_uk = EXCLUDED.name_uk, geom = EXCLUDED.geom
+    SET name_en = EXCLUDED.name_en, name_uk = EXCLUDED.name_uk, geom = EXCLUDED.geom,
+        label_point = EXCLUDED.label_point, label_rank = EXCLUDED.label_rank
 """)
 
 
@@ -58,6 +60,9 @@ def main() -> None:
                     "name_en": attrs["NAME_EN"],
                     "name_uk": attrs["NAME_UK"] or None,
                     "geojson": json.dumps(shape_record.shape.__geo_interface__),
+                    "label_x": attrs["LABEL_X"],
+                    "label_y": attrs["LABEL_Y"],
+                    "label_rank": attrs["LABELRANK"],
                 },
             )
             count += 1
