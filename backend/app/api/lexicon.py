@@ -51,17 +51,19 @@ LABELS = text("""
         'type', 'FeatureCollection',
         'features', coalesce(json_agg(json_build_object(
             'type', 'Feature',
-            'properties', json_build_object('code', code, 'text', spellings),
+            'properties', json_build_object(
+                'code', code, 'text', spellings, 'name_en', name_en, 'name_uk', name_uk),
             'geometry', ST_AsGeoJSON(ST_PointOnSurface(geom), 3)::json
         )), '[]'::json)
     )::text
     FROM (
-        SELECT r.code, r.geom, string_agg(DISTINCT f.spelling, ' / ') AS spellings
+        SELECT r.code, r.name_en, r.name_uk, r.geom,
+               string_agg(DISTINCT f.spelling, ' / ') AS spellings
         FROM form f
         JOIN variety_region vr ON vr.variety_id = f.variety_id
         JOIN region r ON r.id = vr.region_id
         WHERE f.concept_id = :concept_id AND f.is_primary
-        GROUP BY r.code, r.geom
+        GROUP BY r.code, r.name_en, r.name_uk, r.geom
     ) labelled
 """)
 

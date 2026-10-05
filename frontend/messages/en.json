@@ -3,8 +3,25 @@
     "description": "How words are written, pronounced and sound across languages and dialects"
   },
   "Header": {
-    "searchPlaceholder": "Type a word…",
-    "searchLabel": "Search for a word",
     "language": "Interface language"
+  },
+  "Search": {
+    "placeholder": "Type a word in any language…",
+    "label": "Search for a word",
+    "noResults": "No results",
+    "error": "Search failed. Please try again.",
+    "matched": "{word} ({language})"
+  },
+  "Explorer": {
+    "hint": "Type a word such as “water”, “mother” or “sun” and see on the map how it sounds in different languages.",
+    "loadError": "Could not load the word. Please try again."
+  },
+  "Panel": {
+    "languageCount": "{count, plural, one {# language} other {# languages}}",
+    "noWords": "No words for this country yet.",
+    "alsoSaid": "Also:",
+    "play": "Play pronunciation {n}",
+    "synthetic": "synthetic voice",
+    "attribution": "Words: <wikidata>Wikidata</wikidata> (CC0). Audio: <commons>Wikimedia Commons</commons>; license and author are in the ▶ button tooltip."
   }
 }

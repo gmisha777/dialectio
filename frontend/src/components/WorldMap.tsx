@@ -1,11 +1,18 @@
 "use client";
 
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { MapGeoJSONFeature, Map as MapLibreMap, StyleSpecification } from "maplibre-gl";
+import type { FeatureCollection, Point } from "geojson";
+import type {
+  FilterSpecification,
+  MapGeoJSONFeature,
+  Map as MapLibreMap,
+  Marker,
+  StyleSpecification,
+} from "maplibre-gl";
 import { useLocale } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
-import { API_URL } from "@/lib/api";
+import { API_URL, type LabelProps, localized } from "@/lib/api";
 
 const OSM_STYLE: StyleSpecification = {
   version: 8,
@@ -21,27 +28,58 @@ const OSM_STYLE: StyleSpecification = {
   layers: [{ id: "osm", type: "raster", source: "osm" }],
 };
 
+// Served from public/, see scripts/copy-maplibre-worker.mjs
+const WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
+
 type CountryProps = { code: string; name_en: string; name_uk: string | null };
 
-export default function WorldMap() {
+const codeFilter = (codes: string[]): FilterSpecification => [
+  "in",
+  ["get", "code"],
+  ["literal", codes],
+];
+
+export default function WorldMap({
+  highlightCodes,
+  labels,
+  selectedCode,
+  onSelectRegion,
+}: {
+  highlightCodes: string[];
+  labels: FeatureCollection<Point, LabelProps> | null;
+  selectedCode: string | null;
+  onSelectRegion: (code: string, name: string) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
+  const markersRef = useRef<Marker[]>([]);
+  const markerClassRef = useRef<typeof Marker | null>(null);
+  const onSelectRef = useRef(onSelectRegion);
   const locale = useLocale();
+  const localeRef = useRef(locale);
+  const [loaded, setLoaded] = useState(false);
   const [hovered, setHovered] = useState<CountryProps | null>(null);
 
   useEffect(() => {
-    let map: MapLibreMap | undefined;
+    onSelectRef.current = onSelectRegion;
+    localeRef.current = locale;
+  });
+
+  useEffect(() => {
     let cancelled = false;
 
     // maplibre-gl touches `window` on import, so load it only in the browser.
-    import("maplibre-gl").then(({ Map, NavigationControl }) => {
+    import("maplibre-gl").then(({ Map, Marker, NavigationControl, setWorkerUrl }) => {
       if (cancelled || !containerRef.current) return;
+      setWorkerUrl(WORKER_URL);
+      markerClassRef.current = Marker;
       const m = new Map({
         container: containerRef.current,
         style: OSM_STYLE,
         center: [20, 48],
         zoom: 3,
       });
-      map = m;
+      mapRef.current = m;
       m.addControl(new NavigationControl(), "top-right");
 
       m.on("load", () => {
@@ -54,15 +92,29 @@ export default function WorldMap() {
           type: "fill",
           source: "countries",
           paint: {
-            "fill-color": "#3b82f6",
-            "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.35, 0.08],
+            "fill-color": "#94a3b8",
+            "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.3, 0.05],
           },
+        });
+        m.addLayer({
+          id: "countries-highlight",
+          type: "fill",
+          source: "countries",
+          filter: codeFilter([]),
+          paint: { "fill-color": "#2563eb", "fill-opacity": 0.35 },
         });
         m.addLayer({
           id: "countries-line",
           type: "line",
           source: "countries",
-          paint: { "line-color": "#1e3a8a", "line-width": 0.6, "line-opacity": 0.6 },
+          paint: { "line-color": "#1e3a8a", "line-width": 0.6, "line-opacity": 0.5 },
+        });
+        m.addLayer({
+          id: "countries-selected",
+          type: "line",
+          source: "countries",
+          filter: codeFilter([]),
+          paint: { "line-color": "#f59e0b", "line-width": 3 },
         });
 
         let hoveredId: string | number | undefined;
@@ -75,25 +127,69 @@ export default function WorldMap() {
             m.setFeatureState({ source: "countries", id: hoveredId }, { hover: true });
           }
           setHovered(feature ? (feature.properties as CountryProps) : null);
+          m.getCanvas().style.cursor = feature ? "pointer" : "";
         };
 
         m.on("mousemove", "countries-fill", (e) => setHover(e.features?.[0]));
         m.on("mouseleave", "countries-fill", () => setHover(undefined));
+        m.on("click", "countries-fill", (e) => {
+          const props = e.features?.[0]?.properties as CountryProps | undefined;
+          if (props) {
+            onSelectRef.current(
+              props.code,
+              localized(localeRef.current, props.name_en, props.name_uk),
+            );
+          }
+        });
+        setLoaded(true);
       });
     });
 
     return () => {
       cancelled = true;
-      map?.remove();
+      mapRef.current?.remove();
+      mapRef.current = null;
     };
   }, []);
 
-  const hoveredName =
-    hovered && (locale === "uk" ? (hovered.name_uk ?? hovered.name_en) : hovered.name_en);
+  useEffect(() => {
+    const m = mapRef.current;
+    if (!loaded || !m) return;
+    m.setFilter("countries-highlight", codeFilter(highlightCodes));
+    m.setFilter("countries-selected", codeFilter(selectedCode ? [selectedCode] : []));
+  }, [loaded, highlightCodes, selectedCode]);
+
+  useEffect(() => {
+    const m = mapRef.current;
+    const MarkerClass = markerClassRef.current;
+    if (!loaded || !m || !MarkerClass) return;
+
+    markersRef.current.forEach((marker) => marker.remove());
+    markersRef.current = (labels?.features ?? []).map((feature) => {
+      // HTML labels render every script (Hebrew, Georgian, CJK, ...) with the browser's fonts.
+      const el = document.createElement("div");
+      el.textContent = feature.properties.text;
+      el.className =
+        "max-w-40 truncate rounded bg-white/90 px-1.5 py-0.5 text-xs font-semibold text-black shadow cursor-pointer";
+      el.title = feature.properties.text;
+      el.dataset.code = feature.properties.code;
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const { code, name_en, name_uk } = feature.properties;
+        onSelectRef.current(code, localized(localeRef.current, name_en, name_uk));
+      });
+      const [lng, lat] = feature.geometry.coordinates;
+      return new MarkerClass({ element: el }).setLngLat([lng, lat]).addTo(m);
+    });
+  }, [loaded, labels]);
+
+  const hoveredName = hovered && localized(locale, hovered.name_en, hovered.name_uk);
 
   return (
     <div className="relative h-full w-full">
-      <div ref={containerRef} className="absolute inset-0" />
+      {/* Inline style: maplibre adds .maplibregl-map { position: relative } to this element,
+          which would override an `absolute` class and collapse the map to zero height. */}
+      <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
       {hoveredName && (
         <div className="pointer-events-none absolute left-3 top-3 rounded-md bg-white/90 px-3 py-1.5 text-sm text-black shadow">
           {hoveredName}
