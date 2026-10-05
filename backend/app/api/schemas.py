@@ -10,10 +10,17 @@ class ORMModel(BaseModel):
 class ConceptSummary(ORMModel):
     id: int
     wikidata_id: str | None
+    slug: str | None
     gloss_en: str
     gloss_uk: str | None
     description_en: str | None
     description_uk: str | None
+
+
+class ConceptLink(ORMModel):
+    slug: str
+    gloss_en: str
+    gloss_uk: str | None
 
 
 class SearchHit(BaseModel):

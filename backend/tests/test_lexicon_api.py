@@ -85,3 +85,13 @@ def test_labels_use_curated_point_and_rank() -> None:
     assert lng < 60  # European Russia, not the middle of Siberia
     ranks = [f["properties"]["rank"] for f in labels]
     assert ranks == sorted(ranks)
+
+
+def test_concept_by_slug_and_listing() -> None:
+    water = client.get("/api/concepts/by-slug/water").json()
+    assert water["wikidata_id"] == "Q283"
+    assert water["slug"] == "water"
+    assert client.get("/api/concepts/by-slug/no-such-word").status_code == 404
+
+    slugs = {c["slug"] for c in client.get("/api/concepts").json()}
+    assert {"water", "bark-q38681", "bark-q184453"} <= slugs

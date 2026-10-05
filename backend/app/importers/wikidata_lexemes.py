@@ -26,6 +26,7 @@ from app.db.session import SessionLocal
 from app.importers.common import upsert_source
 from app.importers.languages import LANGUAGES, Language
 from app.models import Audio, Concept, Form, Region, Variety
+from app.slugs import assign_missing_slugs
 
 SPARQL_URL = "https://query.wikidata.org/sparql"
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
@@ -422,6 +423,7 @@ def main() -> None:
                 form_count += 1
 
         session.flush()
+        assign_missing_slugs(session)
         removed, kept = remove_stale_concepts(session, set(qids))
         if removed:
             print(f"  removed {removed} concepts no longer imported")

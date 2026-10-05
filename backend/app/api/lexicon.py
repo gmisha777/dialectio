@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.schemas import (
     ConceptDetail,
+    ConceptLink,
     ConceptSummary,
     FormOut,
     LanguageForms,
@@ -121,15 +122,35 @@ def search(
     return hits
 
 
+@router.get("/concepts")
+def list_concepts(session: SessionDep) -> list[ConceptLink]:
+    """All concepts that have a page (used for the sitemap)."""
+    concepts = session.scalars(
+        select(Concept).where(Concept.slug.is_not(None)).order_by(Concept.slug)
+    )
+    return [ConceptLink.model_validate(c) for c in concepts]
+
+
+@router.get("/concepts/by-slug/{slug}")
+def concept_by_slug(session: SessionDep, slug: str) -> ConceptDetail:
+    concept = session.scalar(select(Concept).where(Concept.slug == slug))
+    if concept is None:
+        raise HTTPException(status_code=404, detail="Concept not found")
+    return build_detail(session, concept)
+
+
 @router.get("/concepts/{concept_id}")
 def concept_detail(session: SessionDep, concept_id: int) -> ConceptDetail:
     concept = session.get(Concept, concept_id)
     if concept is None:
         raise HTTPException(status_code=404, detail="Concept not found")
+    return build_detail(session, concept)
 
+
+def build_detail(session: Session, concept: Concept) -> ConceptDetail:
     forms = session.scalars(
         select(Form)
-        .where(Form.concept_id == concept_id)
+        .where(Form.concept_id == concept.id)
         .options(
             selectinload(Form.audio),
             selectinload(Form.variety).selectinload(Variety.regions),
@@ -152,7 +173,7 @@ def concept_detail(session: SessionDep, concept_id: int) -> ConceptDetail:
             )
         entry.forms.append(FormOut.model_validate(form))
 
-    labels = json.loads(session.execute(LABELS, {"concept_id": concept_id}).scalar_one())
+    labels = json.loads(session.execute(LABELS, {"concept_id": concept.id}).scalar_one())
     summary = ConceptSummary.model_validate(concept)
     return ConceptDetail(
         **summary.model_dump(),

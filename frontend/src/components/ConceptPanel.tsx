@@ -88,9 +88,9 @@ export default function ConceptPanel({
   return (
     <aside className="flex h-full flex-col overflow-hidden">
       <div className="border-b border-black/10 p-4 dark:border-white/10">
-        <h2 className="text-lg font-semibold">
+        <h1 className="text-lg font-semibold">
           {localized(locale, concept.gloss_en, concept.gloss_uk)}
-        </h2>
+        </h1>
         {description && <p className="text-sm opacity-70">{description}</p>}
         <p className="mt-1 text-xs opacity-60">
           {t("languageCount", { count: concept.languages.length })}

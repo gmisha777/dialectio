@@ -1,17 +1,25 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useMemo, useRef, useState } from "react";
 
 import ConceptPanel from "@/components/ConceptPanel";
 import LocaleSwitcher from "@/components/LocaleSwitcher";
 import SearchBox from "@/components/SearchBox";
 import WorldMap from "@/components/WorldMap";
-import { type ConceptDetail, getConcept, type SearchHit } from "@/lib/api";
+import { Link } from "@/i18n/navigation";
+import { type ConceptDetail, getConcept, localized, type SearchHit } from "@/lib/api";
 
-export default function Explorer() {
+export default function Explorer({
+  initialConcept = null,
+}: {
+  /** Concept rendered on the server for /[locale]/word/[slug] pages. */
+  initialConcept?: ConceptDetail | null;
+}) {
   const t = useTranslations("Explorer");
-  const [concept, setConcept] = useState<ConceptDetail | null>(null);
+  const tWord = useTranslations("Word");
+  const locale = useLocale();
+  const [concept, setConcept] = useState<ConceptDetail | null>(initialConcept);
   const [region, setRegion] = useState<{ code: string; name: string } | null>(null);
   const [error, setError] = useState(false);
   const requestRef = useRef<AbortController | null>(null);
@@ -25,6 +33,13 @@ export default function Explorer() {
         setConcept(detail);
         setRegion(null);
         setError(false);
+        if (detail.slug) {
+          // Shareable URL without re-rendering the page (keeps the map as it is).
+          window.history.pushState(null, "", `/${locale}/word/${detail.slug}`);
+          document.title = tWord("title", {
+            word: localized(locale, detail.gloss_en, detail.gloss_uk),
+          });
+        }
       })
       .catch((e: unknown) => {
         if (!controller.signal.aborted) {
@@ -42,7 +57,9 @@ export default function Explorer() {
   return (
     <main className="flex h-full flex-col">
       <header className="flex items-center gap-4 border-b border-black/10 px-4 py-3 dark:border-white/15">
-        <h1 className="text-xl font-semibold">Dialectio</h1>
+        <Link href="/" className="text-xl font-semibold">
+          Dialectio
+        </Link>
         <SearchBox onSelect={selectHit} />
         <LocaleSwitcher />
       </header>

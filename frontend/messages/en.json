@@ -42,5 +42,9 @@
     "duplicate": "This word already exists.",
     "saveError": "Could not save. Please try again.",
     "allDone": "Nothing left here — all filled in."
+  },
+  "Word": {
+    "title": "{word} in different languages — spelling and pronunciation | Dialectio",
+    "description": "“{word}” in other languages: {examples} and more — {count, plural, one {# language} other {# languages}} on a map, with pronunciation and audio."
   }
 }

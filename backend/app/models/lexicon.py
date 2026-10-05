@@ -46,6 +46,8 @@ class Concept(Base):
     description_en: Mapped[str | None] = mapped_column(String(500))
     description_uk: Mapped[str | None] = mapped_column(String(500))
     wikidata_id: Mapped[str | None] = mapped_column(String(20), unique=True)
+    # URL path segment of the concept's page, e.g. "water" or "bark-q38681"
+    slug: Mapped[str | None] = mapped_column(String(120), unique=True)
     category: Mapped[str | None] = mapped_column(String(50))
 
     forms: Mapped[list["Form"]] = relationship(back_populates="concept")
