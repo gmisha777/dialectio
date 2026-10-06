@@ -1,4 +1,5 @@
-"""Word editor: lets trusted editors add forms for concepts (e.g. fill gaps in Ukrainian).
+"""Word editor: lets trusted editors add forms for concepts (e.g. fill gaps in Ukrainian)
+and review draft suggestions (status "pending") before they become public.
 
 Protected by a shared token (settings.editor_token, sent as the X-Editor-Token header).
 """
@@ -14,12 +15,15 @@ from sqlalchemy.orm import Session, selectinload
 from app.config import settings
 from app.db.session import get_session
 from app.importers.common import upsert_source
-from app.models import Concept, Form, Source, Variety
+from app.models import APPROVED, PENDING, Concept, Form, Variety
 
 EDITOR_SOURCE_NAME = "Dialectio editors"
 EDITOR_SOURCE_URL = "https://github.com/gmisha777/dialectio"
 # Own data stays closed until the project decides on an open license.
 EDITOR_SOURCE_LICENSE = "All rights reserved (Dialectio)"
+# Drafts proposed for review (e.g. generated); they become editor words once approved.
+SUGGESTION_SOURCE_NAME = "Dialectio suggestions (draft)"
+OWN_SOURCES = (EDITOR_SOURCE_NAME, SUGGESTION_SOURCE_NAME)
 
 # Languages shown as hints next to each concept in the editor
 HINT_LANGUAGES = ("eng", "pol", "deu", "rus")
@@ -42,6 +46,7 @@ class EditorForm(BaseModel):
     spelling: str
     ipa: str | None
     is_primary: bool
+    status: str
     source: str | None
     editable: bool
 
@@ -77,19 +82,42 @@ def get_variety(session: Session, iso639_3: str) -> Variety:
     return variety
 
 
-def to_editor_form(form: Form, editor_source_id: int | None) -> EditorForm:
+def to_editor_form(form: Form) -> EditorForm:
+    source = form.source.name if form.source else None
     return EditorForm(
         id=form.id,
         spelling=form.spelling,
         ipa=form.ipa,
         is_primary=form.is_primary,
-        source=form.source.name if form.source else None,
-        editable=form.source_id is not None and form.source_id == editor_source_id,
+        status=form.status,
+        source=source,
+        editable=source in OWN_SOURCES,
     )
 
 
-def editor_source_id(session: Session) -> int | None:
-    return session.scalar(select(Source.id).where(Source.name == EDITOR_SOURCE_NAME))
+def has_approved_primary(session: Session, concept_id: int, variety_id: int) -> bool:
+    return (
+        session.scalar(
+            select(Form.id).where(
+                Form.concept_id == concept_id,
+                Form.variety_id == variety_id,
+                Form.is_primary,
+                Form.status == APPROVED,
+            )
+        )
+        is not None
+    )
+
+
+def get_own_form(session: Session, form_id: int) -> Form:
+    form = session.get(Form, form_id)
+    if form is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Form not found")
+    if form.source is None or form.source.name not in OWN_SOURCES:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Only editor words and drafts can be changed"
+        )
+    return form
 
 
 @router.get("/concepts")
@@ -101,7 +129,6 @@ def list_concepts(
         v.id: v.iso639_3
         for v in session.scalars(select(Variety).where(Variety.iso639_3.in_(HINT_LANGUAGES)))
     }
-    own_source = editor_source_id(session)
     concepts = session.scalars(
         select(Concept)
         .options(selectinload(Concept.forms).selectinload(Form.source))
@@ -118,7 +145,7 @@ def list_concepts(
         hints = {lang: primary[lang] for lang in HINT_LANGUAGES if lang in primary}
         forms = sorted(
             (f for f in concept.forms if f.variety_id == variety.id),
-            key=lambda f: (not f.is_primary, f.spelling),
+            key=lambda f: (f.status != APPROVED, not f.is_primary, f.spelling),
         )
         result.append(
             EditorConcept(
@@ -129,7 +156,7 @@ def list_concepts(
                 description_en=concept.description_en,
                 description_uk=concept.description_uk,
                 hints=hints,
-                forms=[to_editor_form(f, own_source) for f in forms],
+                forms=[to_editor_form(f) for f in forms],
             )
         )
     return result
@@ -153,22 +180,33 @@ def add_form(session: SessionDep, payload: NewForm) -> EditorForm:
         variety=variety,
         spelling=payload.spelling,
         ipa=payload.ipa,
-        is_primary=not any(f.is_primary for f in existing),
+        is_primary=not has_approved_primary(session, payload.concept_id, variety.id),
+        status=APPROVED,
         source=source,
     )
     session.add(form)
     session.commit()
-    return to_editor_form(form, source.id)
+    return to_editor_form(form)
+
+
+@router.post("/forms/{form_id}/approve")
+def approve_form(session: SessionDep, form_id: int) -> EditorForm:
+    form = get_own_form(session, form_id)
+    if form.status != PENDING:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only pending drafts can be approved")
+    form.is_primary = not has_approved_primary(session, form.concept_id, form.variety_id)
+    form.status = APPROVED
+    # A reviewed draft is an editor's word from now on.
+    form.source = upsert_source(
+        session, EDITOR_SOURCE_NAME, EDITOR_SOURCE_URL, EDITOR_SOURCE_LICENSE
+    )
+    session.commit()
+    return to_editor_form(form)
 
 
 @router.delete("/forms/{form_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_form(session: SessionDep, form_id: int) -> None:
-    form = session.get(Form, form_id)
-    if form is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Form not found")
-    if form.source_id is None or form.source_id != editor_source_id(session):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only editor-added words can be deleted")
-
+    form = get_own_form(session, form_id)
     was_primary = form.is_primary
     concept_id, variety_id = form.concept_id, form.variety_id
     session.delete(form)
@@ -177,7 +215,11 @@ def delete_form(session: SessionDep, form_id: int) -> None:
         # Promote another word (oldest id) so the concept keeps a primary form in this language.
         replacement = session.scalars(
             select(Form)
-            .where(Form.concept_id == concept_id, Form.variety_id == variety_id)
+            .where(
+                Form.concept_id == concept_id,
+                Form.variety_id == variety_id,
+                Form.status == APPROVED,
+            )
             .order_by(Form.id)
         ).first()
         if replacement:

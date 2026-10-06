@@ -6,6 +6,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { localized } from "@/lib/api";
 import {
   addForm,
+  approveForm,
   deleteForm,
   type EditorConcept,
   EditorError,
@@ -14,6 +15,8 @@ import {
 } from "@/lib/editor";
 
 const LANG = "ukr";
+
+const isApproved = (form: EditorForm) => form.status === "approved";
 const TOKEN_KEY = "dialectio.editorToken";
 
 function readToken(): string {
@@ -74,12 +77,24 @@ function ConceptRow({
     setError(null);
     try {
       await deleteForm(token, form.id);
-      // the server may promote another word to primary; reflect the simple case locally
+      // the server may promote another approved word to primary; mirror the simple case
       const rest = concept.forms.filter((f) => f.id !== form.id);
-      if (form.is_primary && rest.length > 0 && !rest.some((f) => f.is_primary)) {
-        rest[0] = { ...rest[0], is_primary: true };
+      const next = rest.find(isApproved);
+      if (form.is_primary && next && !rest.some((f) => f.is_primary)) {
+        onChange(rest.map((f) => (f === next ? { ...f, is_primary: true } : f)));
+      } else {
+        onChange(rest);
       }
-      onChange(rest);
+    } catch {
+      setError(t("saveError"));
+    }
+  };
+
+  const approve = async (form: EditorForm) => {
+    setError(null);
+    try {
+      const updated = await approveForm(token, form.id);
+      onChange(concept.forms.map((f) => (f.id === form.id ? updated : f)));
     } catch {
       setError(t("saveError"));
     }
@@ -115,13 +130,27 @@ function ConceptRow({
           {concept.forms.map((form) => (
             <span
               key={form.id}
-              title={form.source ?? undefined}
+              title={isApproved(form) ? (form.source ?? undefined) : t("draftHint")}
               className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-sm ${
-                form.is_primary ? "bg-blue-500/15 font-semibold" : "bg-black/5 dark:bg-white/10"
+                !isApproved(form)
+                  ? "border border-dashed border-amber-500 bg-amber-500/10"
+                  : form.is_primary
+                    ? "bg-blue-500/15 font-semibold"
+                    : "bg-black/5 dark:bg-white/10"
               }`}
             >
               {form.spelling}
               {form.ipa && <span className="font-mono text-xs opacity-70">{form.ipa}</span>}
+              {!isApproved(form) && (
+                <button
+                  type="button"
+                  onClick={() => approve(form)}
+                  aria-label={t("approve", { word: form.spelling })}
+                  className="font-semibold text-green-700 hover:text-green-500 dark:text-green-400"
+                >
+                  ✓
+                </button>
+              )}
               {form.editable && (
                 <button
                   type="button"
@@ -211,11 +240,12 @@ export default function WordEditor() {
     setToken(tokenInput.trim());
   };
 
-  const done = concepts?.filter((c) => c.forms.length > 0).length ?? 0;
+  const done = concepts?.filter((c) => c.forms.some(isApproved)).length ?? 0;
+  const drafts = concepts?.filter((c) => c.forms.some((f) => !isApproved(f))).length ?? 0;
   const needle = filter.trim().toLowerCase();
   const visible = (concepts ?? []).filter(
     (c) =>
-      (!onlyMissing || c.forms.length === 0) &&
+      (!onlyMissing || !c.forms.some(isApproved)) &&
       (!needle ||
         localized(locale, c.gloss_en, c.gloss_uk).toLowerCase().includes(needle) ||
         Object.values(c.hints).some((w) => w.toLowerCase().includes(needle))),
@@ -249,6 +279,11 @@ export default function WordEditor() {
             <span className="font-medium">
               {t("progress", { done, total: concepts.length })}
             </span>
+            {drafts > 0 && (
+              <span className="rounded bg-amber-500/15 px-2 py-0.5 text-sm">
+                {t("drafts", { count: drafts })}
+              </span>
+            )}
             <label className="flex items-center gap-1 text-sm">
               <input
                 type="checkbox"

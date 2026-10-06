@@ -26,14 +26,14 @@
   },
   "Editor": {
     "title": "Word editor: Ukrainian",
-    "intro": "Add the Ukrainian word for each concept. Hints show the word in other languages. IPA is optional.",
+    "intro": "Add the Ukrainian word for each concept or review drafts (dashed border): ✓ approves, ✕ rejects. Hints show the word in other languages. IPA is optional.",
     "tokenPlaceholder": "Editor token (EDITOR_TOKEN from .env)",
     "login": "Sign in",
     "badToken": "Invalid token.",
     "disabled": "Editing is disabled: set EDITOR_TOKEN in .env and restart the backend.",
     "loadError": "Could not load concepts. Is the backend running?",
     "progress": "Filled: {done} of {total}",
-    "onlyMissing": "Only without a Ukrainian word",
+    "onlyMissing": "Only without an approved word",
     "filterPlaceholder": "Filter…",
     "wordPlaceholder": "Word",
     "ipaPlaceholder": "IPA",
@@ -41,7 +41,10 @@
     "delete": "Delete “{word}”",
     "duplicate": "This word already exists.",
     "saveError": "Could not save. Please try again.",
-    "allDone": "Nothing left here — all filled in."
+    "allDone": "Nothing left here — all filled in.",
+    "approve": "Approve “{word}”",
+    "draftHint": "Draft: hidden on the site until you approve it ✓",
+    "drafts": "Awaiting review: {count}"
   },
   "Word": {
     "title": "{word} in different languages — spelling and pronunciation | Dialectio",

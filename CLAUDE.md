@@ -13,6 +13,7 @@ Full plan and decisions: [docs/plan.md](docs/plan.md). Communicate with the user
 - Data is organized around `Concept` (meaning), not raw word strings.
 - Every imported record must keep its `Source` (name, url, license).
 - Synthetic (TTS) audio must be flagged `is_synthetic`.
+- Forms have `status`: only `approved` ones are public (search, word pages, map). `pending` drafts (source "Dialectio suggestions (draft)", loaded by `app.importers.suggestions`) wait for review in the editor. Every public query must filter on `status = 'approved'`.
 - Concept slugs (`/[locale]/word/[slug]`) are permanent once assigned (`app/slugs.py`); never recompute them, URLs are indexed by search engines.
 - Use only free/open data sources and libraries; no Google Maps.
 - UI strings live in `frontend/messages/{uk,en}.json` (next-intl); routes are prefixed with the locale (`/uk`, `/en`), default `uk`. Never hardcode UI text in components.

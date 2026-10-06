@@ -282,6 +282,7 @@ ENSURE_PRIMARY = text("""
     UPDATE form SET is_primary = true
     WHERE id IN (
         SELECT min(id) FROM form
+        WHERE status = 'approved'
         GROUP BY concept_id, variety_id
         HAVING NOT bool_or(is_primary)
     )
@@ -289,7 +290,7 @@ ENSURE_PRIMARY = text("""
 
 
 def ensure_one_primary(session: Session) -> int:
-    """Give every (concept, language) without a primary form its oldest form as primary."""
+    """Give every (concept, language) without a primary form its oldest approved form."""
     return session.execute(ENSURE_PRIMARY).rowcount
 
 

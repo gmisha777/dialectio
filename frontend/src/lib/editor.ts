@@ -5,6 +5,8 @@ export type EditorForm = {
   spelling: string;
   ipa: string | null;
   is_primary: boolean;
+  /** "approved" words are public; "pending" drafts wait for review. */
+  status: "approved" | "pending";
   source: string | null;
   editable: boolean;
 };
@@ -48,6 +50,9 @@ export const addForm = (
   token: string,
   form: { concept_id: number; iso639_3: string; spelling: string; ipa: string | null },
 ) => request<EditorForm>(token, "/forms", { method: "POST", body: JSON.stringify(form) });
+
+export const approveForm = (token: string, id: number) =>
+  request<EditorForm>(token, `/forms/${id}/approve`, { method: "POST" });
 
 export const deleteForm = (token: string, id: number) =>
   request<void>(token, `/forms/${id}`, { method: "DELETE" });

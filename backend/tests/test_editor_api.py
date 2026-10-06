@@ -20,6 +20,10 @@ def auth(token: str = TOKEN) -> dict[str, str]:
     return {"X-Editor-Token": token}
 
 
+def approved_forms(concept: dict) -> list[dict]:
+    return [f for f in concept["forms"] if f["status"] == "approved"]
+
+
 def concepts(lang: str = "ukr") -> list[dict]:
     response = client.get("/api/editor/concepts", params={"lang": lang}, headers=auth())
     assert response.status_code == 200
@@ -44,7 +48,7 @@ def test_lists_concepts_with_hints() -> None:
 
 
 def test_add_and_delete_word() -> None:
-    missing = next(c for c in concepts() if not c["forms"])
+    missing = next(c for c in concepts() if not approved_forms(c))
     payload = {"concept_id": missing["id"], "iso639_3": "ukr", "spelling": "  тестслово "}
 
     created = client.post("/api/editor/forms", json=payload, headers=auth())
@@ -63,10 +67,54 @@ def test_add_and_delete_word() -> None:
     finally:
         deleted = client.delete(f"/api/editor/forms/{form['id']}", headers=auth())
     assert deleted.status_code == 204
-    assert not next(c for c in concepts() if c["id"] == missing["id"])["forms"]
+    assert not approved_forms(next(c for c in concepts() if c["id"] == missing["id"]))
 
 
 def test_cannot_delete_imported_word() -> None:
     water = next(c for c in concepts() if c["wikidata_id"] == "Q283")
     response = client.delete(f"/api/editor/forms/{water['forms'][0]['id']}", headers=auth())
     assert response.status_code == 403
+
+
+def test_pending_draft_is_hidden_until_approved() -> None:
+    from sqlalchemy import select
+
+    from app.api.editor import EDITOR_SOURCE_LICENSE, EDITOR_SOURCE_URL, SUGGESTION_SOURCE_NAME
+    from app.db.session import SessionLocal
+    from app.importers.common import upsert_source
+    from app.models import PENDING, Form, Variety
+
+    missing = next(c for c in concepts() if not approved_forms(c))
+    with SessionLocal() as session:
+        source = upsert_source(
+            session, SUGGESTION_SOURCE_NAME, EDITOR_SOURCE_URL, EDITOR_SOURCE_LICENSE
+        )
+        ukr = session.scalar(select(Variety).where(Variety.iso639_3 == "ukr"))
+        draft = Form(
+            concept_id=missing["id"],
+            variety=ukr,
+            spelling="чернеткатест",
+            status=PENDING,
+            source=source,
+        )
+        session.add(draft)
+        session.commit()
+        draft_id = draft.id
+    try:
+        assert client.get("/api/search", params={"q": "чернеткатест"}).json() == []
+        row = next(c for c in concepts() if c["id"] == missing["id"])
+        assert row["forms"][0]["status"] == "pending" and row["forms"][0]["editable"]
+
+        approved = client.post(f"/api/editor/forms/{draft_id}/approve", headers=auth())
+        assert approved.status_code == 200
+        assert approved.json()["status"] == "approved"
+        assert approved.json()["is_primary"]
+        assert approved.json()["source"] == "Dialectio editors"
+        assert (
+            client.post(f"/api/editor/forms/{draft_id}/approve", headers=auth()).status_code == 409
+        )
+
+        hits = client.get("/api/search", params={"q": "чернеткатест"}).json()
+        assert hits and hits[0]["matched_spelling"] == "чернеткатест"
+    finally:
+        client.delete(f"/api/editor/forms/{draft_id}", headers=auth())

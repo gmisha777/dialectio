@@ -14,7 +14,7 @@ from app.api.schemas import (
     SearchHit,
 )
 from app.db.session import get_session
-from app.models import Concept, Form, Variety
+from app.models import APPROVED, Concept, Form, Variety
 
 router = APIRouter(prefix="/api", tags=["lexicon"])
 
@@ -26,8 +26,9 @@ SEARCH = text("""
     WITH candidates AS (
         SELECT f.concept_id, f.spelling AS matched, f.variety_id, f.is_primary
         FROM form f
-        WHERE lower(f.spelling) LIKE :prefix ESCAPE '\\'
-           OR similarity(lower(f.spelling), :q) > 0.4
+        WHERE f.status = 'approved'
+          AND (lower(f.spelling) LIKE :prefix ESCAPE '\\'
+               OR similarity(lower(f.spelling), :q) > 0.4)
         UNION ALL
         SELECT c.id, g.gloss, NULL, true
         FROM concept c, LATERAL (VALUES (c.gloss_en), (c.gloss_uk)) AS g(gloss)
@@ -69,7 +70,7 @@ LABELS = text("""
         FROM form f
         JOIN variety_region vr ON vr.variety_id = f.variety_id
         JOIN region r ON r.id = vr.region_id
-        WHERE f.concept_id = :concept_id AND f.is_primary
+        WHERE f.concept_id = :concept_id AND f.is_primary AND f.status = 'approved'
         GROUP BY r.id
     ) labelled
 """)
@@ -150,7 +151,7 @@ def concept_detail(session: SessionDep, concept_id: int) -> ConceptDetail:
 def build_detail(session: Session, concept: Concept) -> ConceptDetail:
     forms = session.scalars(
         select(Form)
-        .where(Form.concept_id == concept.id)
+        .where(Form.concept_id == concept.id, Form.status == APPROVED)
         .options(
             selectinload(Form.audio),
             selectinload(Form.variety).selectinload(Variety.regions),
