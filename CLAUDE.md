@@ -25,6 +25,7 @@ Full plan and decisions: [docs/plan.md](docs/plan.md). Communicate with the user
 - Import countries (from `backend/`): `uv run python -m app.importers.natural_earth`; restart the API afterwards (country vector tiles are cached in memory)
 - Word editor: `/uk/editor`, token = `EDITOR_TOKEN` in `.env`; editor words use source "Dialectio editors" and survive Wikidata re-imports
 - Import words (from `backend/`, after countries): `uv run python -m app.importers.wikidata_lexemes` (~10 min, re-runnable); word lists and exclusions live in `backend/app/importers/data/`
+- TTS (from `backend/`): `uv tool install piper-tts` once, then `uv run python -m app.importers.tts [iso ...]` after every Wikidata import and after approving words (only approved primary words without recordings get synthetic audio). Piper is GPL: run it only as an external program, never import it. Only voices whose license allows commercial use go into `VOICES`.
 - Migrations (from `backend/`): `uv run alembic revision --autogenerate -m "..."`, `uv run alembic upgrade head`
 - Frontend (from `frontend/`): `npm install`, `npm run dev`, `npm run lint`, `npm run build`
 - `uvicorn --reload` on Windows sometimes misses file changes: if the API serves old code, restart it

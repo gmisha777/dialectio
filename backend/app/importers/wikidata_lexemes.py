@@ -9,6 +9,7 @@ Re-runnable: concepts and varieties are upserted, forms from this source are rep
 Run from backend/:  uv run python -m app.importers.wikidata_lexemes
 """
 
+import os
 import re
 import time
 from collections import defaultdict
@@ -58,6 +59,9 @@ class Lexeme:
     lemma: str
     ipas: list[str] = field(default_factory=list)
     audio_files: list[str] = field(default_factory=list)
+    # Concepts for which this lexeme's sense carries a language style (P6191: slang,
+    # informal, jargon, ...); such words are never chosen as the main word.
+    styled_for: set[str] = field(default_factory=set)
 
     @property
     def number(self) -> int:
@@ -169,13 +173,14 @@ def fetch_lexemes(
     for i, batch in enumerate(chunks(qids, CONCEPT_BATCH), 1):
         items = " ".join(f"wd:{qid}" for qid in batch)
         rows = client.sparql(f"""
-            SELECT ?item ?lang ?lex ?lemma WHERE {{
+            SELECT ?item ?lang ?lex ?lemma ?style WHERE {{
               hint:Query hint:optimizer "None" .
               VALUES ?item {{ {items} }}
               ?sense wdt:P5137 ?item .
               ?lex ontolex:sense ?sense ; dct:language ?lang ; wikibase:lemma ?lemma .
               VALUES (?lang ?tag) {{ {lang_values} }}
               FILTER(LANG(?lemma) = ?tag)
+              OPTIONAL {{ ?sense wdt:P6191 ?style }}
             }}""")
         for row in rows:
             lemma = row["lemma"].strip()
@@ -183,7 +188,10 @@ def fetch_lexemes(
                 continue
             lexeme_id = entity_id(row["lex"])
             lexeme = by_id.setdefault(lexeme_id, Lexeme(lexeme_id, lemma))
-            result[(entity_id(row["item"]), entity_id(row["lang"]))][lexeme_id] = lexeme
+            qid = entity_id(row["item"])
+            result[(qid, entity_id(row["lang"]))][lexeme_id] = lexeme
+            if "style" in row:
+                lexeme.styled_for.add(qid)
         print(f"  concepts batch {i}: {len(rows)} lexeme links")
 
     # Step 2: lexeme -> IPA and audio of the lemma form.
@@ -273,9 +281,67 @@ def strip_html(value: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", value)).strip()
 
 
-def pick_primary(lexemes: Iterable[Lexeme]) -> Lexeme:
-    # Prefer the lexeme with audio, then with IPA, then the oldest (usually the common word).
-    return min(lexemes, key=lambda lx: (not lx.audio_files, not lx.ipas, lx.number))
+def same_stem(a: str, b: str) -> bool:
+    """Rough match of inflected forms ("риба" / "риби"): long common prefix."""
+    common = len(os.path.commonprefix([a, b]))
+    return common >= 3 and common >= min(len(a), len(b)) - 2
+
+
+def pick_primary(
+    lexemes: Iterable[Lexeme], item_label: str | None = None, item_qid: str | None = None
+) -> Lexeme | None:
+    """Choose the main word for a concept in one language; None means "use the label".
+
+    The concept's Wikidata label in that language is normally the neutral, standard word, so
+    a lexeme matching it wins ("голова", not the slang "тыква" that happens to have audio);
+    then one that is a word of the label ("пес" for "пес свійський"), then one with the same
+    stem. Senses marked with a language style (slang, informal, ...) never win over unmarked
+    ones. Remaining ties fall back to audio, then IPA, then the oldest lexeme.
+
+    When no lexeme resembles a one-word label, the label itself is the better main word
+    (e.g. Russian "деньги" when only slang lexemes point to "money"): returns None.
+    """
+    label = (item_label or "").lower()
+    label_words = label.split()
+
+    def tier(lx: Lexeme) -> int:
+        lemma = lx.lemma.lower()
+        if lemma == label:
+            return 0
+        if lemma in label_words:
+            return 1
+        if any(same_stem(lemma, word) for word in label_words):
+            return 2
+        return 3
+
+    def rank(lx: Lexeme) -> tuple[int, bool, bool, bool, int]:
+        styled = item_qid is not None and item_qid in lx.styled_for
+        return (tier(lx), styled, not lx.audio_files, not lx.ipas, lx.number)
+
+    best = min(lexemes, key=rank)
+    if len(label_words) == 1 and tier(best) == 3:
+        return None
+    return best
+
+
+def fetch_item_labels(
+    client: WikimediaClient, qids: list[str], languages: Iterable[Language]
+) -> dict[tuple[str, str], str]:
+    """Return {(concept qid, language qid): the concept's Wikidata label in that language}."""
+    lang_values = " ".join(f'(wd:{lang.wikidata_id} "{lang.lemma_tag}")' for lang in languages)
+    labels: dict[tuple[str, str], str] = {}
+    for batch in chunks(qids, 50):
+        items = " ".join(f"wd:{qid}" for qid in batch)
+        rows = client.sparql(f"""
+            SELECT ?item ?lang ?label WHERE {{
+              VALUES ?item {{ {items} }}
+              VALUES (?lang ?tag) {{ {lang_values} }}
+              ?item rdfs:label ?label .
+              FILTER(LANG(?label) = ?tag)
+            }}""")
+        for row in rows:
+            labels[(entity_id(row["item"]), entity_id(row["lang"]))] = row["label"]
+    return labels
 
 
 ENSURE_PRIMARY = text("""
@@ -361,6 +427,7 @@ def main() -> None:
 
     print("Fetching concept labels ...")
     labels = fetch_labels(client, qids)
+    item_labels = fetch_item_labels(client, qids, LANGUAGES)
 
     audio_names = sorted(
         {
@@ -415,8 +482,23 @@ def main() -> None:
                 continue
             existing = other_forms[(concepts[qid].id, varieties[lang_qid].id)]
             has_primary = any(f.is_primary for f in existing)
-            primary = pick_primary(by_id.values())
+            label = item_labels.get((qid, lang_qid))
+            primary = pick_primary(by_id.values(), label, qid)
             seen_spellings = {f.spelling for f in existing}
+            if primary is None and label and label not in seen_spellings:
+                # The concept's label is the standard word; lexemes become synonyms.
+                seen_spellings.add(label)
+                session.add(
+                    Form(
+                        concept=concepts[qid],
+                        variety=varieties[lang_qid],
+                        spelling=label[:200],
+                        is_primary=not has_primary,
+                        external_id=qid,
+                        source=wikidata,
+                    )
+                )
+                form_count += 1
             for lexeme in sorted(by_id.values(), key=lambda lx: lx is not primary):
                 if lexeme.lemma in seen_spellings:
                     continue

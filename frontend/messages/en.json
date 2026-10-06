@@ -22,7 +22,9 @@
     "alsoSaid": "Also:",
     "play": "Play pronunciation {n}",
     "synthetic": "synthetic voice",
-    "attribution": "Words: <wikidata>Wikidata</wikidata> (CC0). Audio: <commons>Wikimedia Commons</commons>; license and author are in the ▶ button tooltip."
+    "attribution": "Words: <wikidata>Wikidata</wikidata> (CC0). Audio: <commons>Wikimedia Commons</commons>; TTS marks synthetic Piper voices. License and author are in the ▶ button tooltip.",
+    "playSynthetic": "Play synthetic pronunciation",
+    "tts": "TTS"
   },
   "Editor": {
     "title": "Word editor: Ukrainian",

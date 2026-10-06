@@ -2,10 +2,18 @@
 
 import { useLocale, useTranslations } from "next-intl";
 
-import { type Audio as AudioInfo, type ConceptDetail, type LanguageForms, localized } from "@/lib/api";
+import {
+  type Audio as AudioInfo,
+  API_URL,
+  type ConceptDetail,
+  type LanguageForms,
+  localized,
+} from "@/lib/api";
 
 function playAudio(url: string) {
-  new Audio(url).play().catch((e: unknown) => console.error(e));
+  // Generated audio is served by the API under a relative /media/... path.
+  const src = url.startsWith("/") ? `${API_URL}${url}` : url;
+  new Audio(src).play().catch((e: unknown) => console.error(e));
 }
 
 function AudioButtons({ audio }: { audio: AudioInfo[] }) {
@@ -20,10 +28,13 @@ function AudioButtons({ audio }: { audio: AudioInfo[] }) {
           title={[a.speaker, a.license, a.is_synthetic ? t("synthetic") : null]
             .filter(Boolean)
             .join(" · ")}
-          aria-label={t("play", { n: i + 1 })}
-          className="rounded-full border border-current/20 px-2 text-sm hover:bg-blue-500/10"
+          aria-label={a.is_synthetic ? t("playSynthetic") : t("play", { n: i + 1 })}
+          className={`rounded-full border px-2 text-sm hover:bg-blue-500/10 ${
+            a.is_synthetic ? "border-dashed border-current/30 opacity-80" : "border-current/20"
+          }`}
         >
-          ▶{audio.length > 1 ? ` ${i + 1}` : ""}
+          ▶{audio.length > 1 && !a.is_synthetic ? ` ${i + 1}` : ""}
+          {a.is_synthetic && <span className="ml-1 text-[10px] uppercase">{t("tts")}</span>}
         </button>
       ))}
     </span>
