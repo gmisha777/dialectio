@@ -1,7 +1,8 @@
 """Dialect varieties (Stage 2): Ukrainian dialect groups (наріччя) and dialects (говори).
 
 Territories are approximated by oblasts (ISO 3166-2 codes); an oblast can host several
-dialects, e.g. Ivano-Frankivsk: Hutsul, Pokuttia-Bukovyna and Boyko.
+dialects, e.g. Ivano-Frankivsk: Hutsul, Pokuttia-Bukovyna and Boyko. Lemko, Nadsian, Hutsul
+and Bukovynian territories extend into Poland, Slovakia and Romania.
 
 Run from backend/ after the regions importers:  uv run python -m app.importers.dialects
 """
@@ -98,7 +99,7 @@ DIALECTS: tuple[Dialect, ...] = (
         "dialect",
         "Pokuttia-Bukovyna dialect",
         "покутсько-буковинський говір",
-        ("UA-77", "UA-26"),
+        ("UA-77", "UA-26", "RO-SV"),
     ),
     Dialect(
         "ukr-hutsul",
@@ -106,7 +107,7 @@ DIALECTS: tuple[Dialect, ...] = (
         "dialect",
         "Hutsul dialect",
         "гуцульський говір",
-        ("UA-26", "UA-77", "UA-21"),
+        ("UA-26", "UA-77", "UA-21", "RO-MM"),
     ),
     Dialect(
         "ukr-boyko",
@@ -123,6 +124,22 @@ DIALECTS: tuple[Dialect, ...] = (
         "Transcarpathian dialect",
         "закарпатський говір",
         ("UA-21",),
+    ),
+    Dialect(
+        "ukr-lemko",
+        "ukr-southwest",
+        "dialect",
+        "Lemko dialect",
+        "лемківський говір",
+        ("PL-MA", "PL-PK", "SK-PV"),
+    ),
+    Dialect(
+        "ukr-nadsian",
+        "ukr-southwest",
+        "dialect",
+        "Nadsian (San) dialect",
+        "надсянський говір",
+        ("UA-46", "PL-PK"),
     ),
     # South-Eastern dialects
     Dialect(

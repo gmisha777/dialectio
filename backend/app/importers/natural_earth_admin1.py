@@ -1,4 +1,4 @@
-"""Import first-level regions (oblasts) from Natural Earth admin-1 into `region` (level "adm1").
+"""Import first-level regions (oblasts, voivodeships...) from Natural Earth into `region` (adm1).
 
 Regions are attached to their country by the ISO 3166-2 code prefix, so Crimea (UA-43) and
 Sevastopol (UA-40), which Natural Earth lists under Russia de facto, belong to Ukraine here,
@@ -24,8 +24,10 @@ SOURCE_NAME = "Natural Earth 1:10m Admin 1 States, Provinces"
 SOURCE_URL = "https://www.naturalearthdata.com/"
 SOURCE_LICENSE = "Public domain"
 
-# ISO 3166-2 country prefix -> our country region code
-COUNTRIES = {"UA": "UKR"}
+# ISO 3166-2 country prefix -> our country region code. Besides Ukraine: neighbours where
+# Ukrainian dialects are spoken (Lemko and Nadsian in Poland and Slovakia, Hutsul and
+# Bukovynian in Romania).
+COUNTRIES = {"UA": "UKR", "PL": "POL", "SK": "SVK", "RO": "ROU"}
 
 # Natural Earth names that are wrong or ambiguous
 NAME_FIXES = {
