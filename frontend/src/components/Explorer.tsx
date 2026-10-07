@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import ConceptPanel from "@/components/ConceptPanel";
 import LocaleSwitcher from "@/components/LocaleSwitcher";
@@ -20,6 +20,17 @@ export default function Explorer({
   const tWord = useTranslations("Word");
   const locale = useLocale();
   const [concept, setConcept] = useState<ConceptDetail | null>(initialConcept);
+
+  // The server-rendered page may be a few minutes old (cache); load the current data so
+  // edits and newly approved words show up immediately.
+  useEffect(() => {
+    if (!initialConcept) return;
+    const controller = new AbortController();
+    getConcept(initialConcept.id, controller.signal)
+      .then(setConcept)
+      .catch(() => {}); // keep the server-rendered data
+    return () => controller.abort();
+  }, [initialConcept]);
   const [region, setRegion] = useState<SelectedRegion | null>(null);
   const [error, setError] = useState(false);
   const requestRef = useRef<AbortController | null>(null);

@@ -5,8 +5,10 @@ export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000
 const SERVER_API_URL = process.env.API_INTERNAL_URL || API_URL;
 /** Public address of the site, used for canonical URLs and the sitemap. */
 export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
-/** How long server-rendered pages may reuse API data, in seconds. */
-const SERVER_REVALIDATE = 3600;
+/** How long server-rendered pages may reuse API data, in seconds (the page also refreshes
+ * its data in the browser, so visitors see edits right away; this mainly bounds staleness
+ * for search engines). */
+const SERVER_REVALIDATE = 300;
 
 export type ConceptSummary = {
   id: number;
