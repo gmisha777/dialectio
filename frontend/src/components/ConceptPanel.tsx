@@ -127,7 +127,7 @@ export default function ConceptPanel({
         </h1>
         {description && <p className="text-sm opacity-70">{description}</p>}
         <p className="mt-1 text-xs opacity-60">
-          {t("languageCount", { count: concept.languages.length })}
+          {t("languageCount", { count: concept.languages.filter((l) => l.kind === "language").length })}
         </p>
         {region && (
           <button

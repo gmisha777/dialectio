@@ -60,7 +60,7 @@ export async function generateMetadata({
     description: t("description", {
       word,
       examples: examples(concept, locale),
-      count: concept.languages.length,
+      count: concept.languages.filter((l) => l.kind === "language").length,
     }),
     alternates: {
       canonical: pageUrl(locale, slug),

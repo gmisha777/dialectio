@@ -35,6 +35,15 @@ export default function Explorer({
   const [region, setRegion] = useState<SelectedRegion | null>(null);
   const [error, setError] = useState(false);
   const requestRef = useRef<AbortController | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const selectRegion = (selected: SelectedRegion | null) => {
+    setRegion(selected);
+    // On phones the panel is below the map: bring the filtered list into view.
+    if (selected && window.matchMedia("(max-width: 767px)").matches) {
+      panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
 
   const selectHit = (hit: SearchHit) => {
     requestRef.current?.abort();
@@ -68,7 +77,7 @@ export default function Explorer({
 
   return (
     <main className="flex h-full flex-col">
-      <header className="flex items-center gap-4 border-b border-black/10 px-4 py-3 dark:border-white/15">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-black/10 px-4 py-3 dark:border-white/15">
         <Link href="/" className="text-xl font-semibold">
           Dialectio
         </Link>
@@ -82,10 +91,10 @@ export default function Explorer({
             highlightCodes={highlightCodes}
             labels={concept?.labels ?? null}
             selectedCode={region?.code ?? null}
-            onSelectRegion={setRegion}
+            onSelectRegion={selectRegion}
           />
         </section>
-        <div className="border-black/10 md:w-96 md:border-l dark:border-white/15">
+        <div ref={panelRef} className="border-black/10 md:w-96 md:border-l dark:border-white/15">
           {concept ? (
             <ConceptPanel
               concept={concept}
