@@ -137,3 +137,11 @@ def test_stats_count_public_data_and_list_sources() -> None:
     names = {s["name"] for s in stats["sources"]}
     assert {"Wikidata Lexemes", "Wikimedia Commons"} <= names
     assert stats["words"] == sum(s["words"] for s in stats["sources"])
+
+
+def test_featured_concepts_have_several_dialect_words() -> None:
+    featured = client.get("/api/concepts/featured", params={"limit": 5}).json()
+    assert 0 < len(featured) <= 5
+    assert all(len(c["examples"]) >= 2 for c in featured)
+    counts = [len(c["examples"]) for c in featured]
+    assert counts == sorted(counts, reverse=True)

@@ -133,5 +133,13 @@
     "third": "The basemap is loaded from OpenStreetMap servers and some audio from Wikimedia Commons. These services see your IP address, like any site your browser loads something from.",
     "deleteTitle": "Deletion",
     "delete": "To delete your contribution or voice recording, write to us on <link>GitHub</link> with the word and the dialect."
+  },
+  "Home": {
+    "intro": "Type a word in any language and see on the map how it is written, pronounced and sounds in the world's languages and Ukrainian dialects. Or start with these examples:",
+    "wordOfDay": "Word of the day",
+    "inDialects": "In dialects:",
+    "open": "Show all languages and dialects",
+    "dialectsTitle": "Dialect favourites",
+    "dialectsHint": "One concept, different words across Ukraine."
   }
 }

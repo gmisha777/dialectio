@@ -10,6 +10,7 @@ from app.api.schemas import (
     ConceptDetail,
     ConceptLink,
     ConceptSummary,
+    FeaturedConcept,
     FormOut,
     LanguageForms,
     SearchHit,
@@ -108,6 +109,40 @@ def list_concepts(session: SessionDep) -> list[ConceptLink]:
         select(Concept).where(Concept.slug.is_not(None)).order_by(Concept.slug)
     )
     return [ConceptLink.model_validate(c) for c in concepts]
+
+
+# Concepts whose dialect words differ the most: the home page's word of the day and examples.
+FEATURED = text("""
+    SELECT c.id, c.slug, c.gloss_en,
+           -- concepts without a Ukrainian label fall back to the main Ukrainian word
+           coalesce(c.gloss_uk, (
+               SELECT f.spelling FROM form f JOIN variety v ON v.id = f.variety_id
+               WHERE f.concept_id = c.id AND v.code = 'ukr' AND f.is_primary
+                 AND f.status IN ('approved', 'pending')
+               LIMIT 1)) AS gloss_uk,
+           array_agg(w.spelling ORDER BY w.varieties DESC, w.spelling) AS examples
+    FROM (
+        SELECT f.concept_id, lower(f.spelling) AS spelling, count(*) AS varieties
+        FROM form f JOIN variety v ON v.id = f.variety_id
+        WHERE v.kind = 'dialect' AND f.status IN ('approved', 'pending')
+        GROUP BY f.concept_id, lower(f.spelling)
+    ) w
+    JOIN concept c ON c.id = w.concept_id
+    WHERE c.slug IS NOT NULL
+    GROUP BY c.id
+    HAVING count(*) >= :min_words
+    ORDER BY count(*) DESC, c.slug
+    LIMIT :limit
+""")
+
+
+@router.get("/concepts/featured")
+def featured_concepts(
+    session: SessionDep, limit: Annotated[int, Query(ge=1, le=50)] = 12
+) -> list[FeaturedConcept]:
+    """Concepts with the most different dialect words, e.g. potato: бульба, бараболя, крумплі."""
+    rows = session.execute(FEATURED, {"min_words": 2, "limit": limit}).mappings()
+    return [FeaturedConcept(**row) for row in rows]
 
 
 @router.get("/concepts/by-slug/{slug}")

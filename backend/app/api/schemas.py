@@ -23,6 +23,14 @@ class ConceptLink(ORMModel):
     gloss_uk: str | None
 
 
+class FeaturedConcept(BaseModel):
+    id: int
+    slug: str
+    gloss_en: str
+    gloss_uk: str | None
+    examples: list[str]  # distinct dialect words, most widespread first
+
+
 class SearchHit(BaseModel):
     concept: ConceptSummary
     matched_spelling: str

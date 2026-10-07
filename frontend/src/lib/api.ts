@@ -146,3 +146,10 @@ export type Stats = {
 export function getStats() {
   return getServerJson<Stats>("/api/stats");
 }
+
+export type FeaturedConcept = ConceptLink & { id: number; examples: string[] };
+
+/** Server-side: concepts with the most different dialect words (home page). */
+export async function listFeaturedConcepts(limit = 12) {
+  return (await getServerJson<FeaturedConcept[]>(`/api/concepts/featured?limit=${limit}`)) ?? [];
+}

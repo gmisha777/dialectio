@@ -4,18 +4,31 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import ConceptPanel from "@/components/ConceptPanel";
+import HomePanel from "@/components/HomePanel";
 import { InfoNav } from "@/components/InfoPage";
 import LocaleSwitcher from "@/components/LocaleSwitcher";
 import SearchBox from "@/components/SearchBox";
 import WorldMap, { type SelectedRegion } from "@/components/WorldMap";
 import { Link } from "@/i18n/navigation";
-import { type ConceptDetail, getConcept, localized, type SearchHit } from "@/lib/api";
+import {
+  type ConceptDetail,
+  type FeaturedConcept,
+  getConcept,
+  localized,
+  type SearchHit,
+} from "@/lib/api";
 
 export default function Explorer({
   initialConcept = null,
+  featured = [],
+  preview = null,
 }: {
   /** Concept rendered on the server for /[locale]/word/[slug] pages. */
   initialConcept?: ConceptDetail | null;
+  /** Home page: concepts with interesting dialect words, listed in the panel. */
+  featured?: FeaturedConcept[];
+  /** Home page: the word of the day, shown on the map until another word is picked. */
+  preview?: ConceptDetail | null;
 }) {
   const t = useTranslations("Explorer");
   const tWord = useTranslations("Word");
@@ -37,31 +50,41 @@ export default function Explorer({
   const requestRef = useRef<AbortController | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const selectRegion = (selected: SelectedRegion | null) => {
+  const showConcept = (detail: ConceptDetail, selected: SelectedRegion | null) => {
+    setConcept(detail);
     setRegion(selected);
+    setError(false);
+    if (detail.slug) {
+      // Shareable URL without re-rendering the page (keeps the map as it is).
+      window.history.pushState(null, "", `/${locale}/word/${detail.slug}`);
+      document.title = tWord("title", {
+        word: localized(locale, detail.gloss_en, detail.gloss_uk),
+      });
+    }
+  };
+
+  const selectRegion = (selected: SelectedRegion | null) => {
+    // A click on the home page's preview map opens the word of the day for that region.
+    if (!concept && preview) {
+      showConcept(preview, selected);
+      getConcept(preview.id) // the server-rendered preview may be a few minutes old
+        .then(setConcept)
+        .catch(() => {});
+    } else {
+      setRegion(selected);
+    }
     // On phones the panel is below the map: bring the filtered list into view.
     if (selected && window.matchMedia("(max-width: 767px)").matches) {
       panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
 
-  const selectHit = (hit: SearchHit) => {
+  const openConcept = (conceptId: number) => {
     requestRef.current?.abort();
     const controller = new AbortController();
     requestRef.current = controller;
-    getConcept(hit.concept.id, controller.signal)
-      .then((detail) => {
-        setConcept(detail);
-        setRegion(null);
-        setError(false);
-        if (detail.slug) {
-          // Shareable URL without re-rendering the page (keeps the map as it is).
-          window.history.pushState(null, "", `/${locale}/word/${detail.slug}`);
-          document.title = tWord("title", {
-            word: localized(locale, detail.gloss_en, detail.gloss_uk),
-          });
-        }
-      })
+    getConcept(conceptId, controller.signal)
+      .then((detail) => showConcept(detail, null))
       .catch((e: unknown) => {
         if (!controller.signal.aborted) {
           console.error(e);
@@ -70,9 +93,10 @@ export default function Explorer({
       });
   };
 
+  const shown = concept ?? preview;
   const highlightCodes = useMemo(
-    () => (concept ? concept.languages.flatMap((lang) => lang.region_codes) : []),
-    [concept],
+    () => (shown ? shown.languages.flatMap((lang) => lang.region_codes) : []),
+    [shown],
   );
 
   return (
@@ -81,7 +105,7 @@ export default function Explorer({
         <Link href="/" className="text-xl font-semibold">
           Dialectio
         </Link>
-        <SearchBox onSelect={selectHit} />
+        <SearchBox onSelect={(hit: SearchHit) => openConcept(hit.concept.id)} />
         <InfoNav className="hidden shrink-0 lg:flex" />
         <LocaleSwitcher />
       </header>
@@ -89,7 +113,7 @@ export default function Explorer({
         <section className="relative min-h-[50vh] flex-1">
           <WorldMap
             highlightCodes={highlightCodes}
-            labels={concept?.labels ?? null}
+            labels={shown?.labels ?? null}
             selectedCode={region?.code ?? null}
             onSelectRegion={selectRegion}
           />
@@ -100,6 +124,12 @@ export default function Explorer({
               concept={concept}
               region={region}
               onClearRegion={() => setRegion(null)}
+            />
+          ) : !error && featured.length > 0 ? (
+            <HomePanel
+              featured={featured}
+              wordOfDay={featured.find((c) => c.id === preview?.id) ?? null}
+              onOpen={(c) => openConcept(c.id)}
             />
           ) : (
             <div className="space-y-4 p-4">
