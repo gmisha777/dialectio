@@ -22,6 +22,8 @@ from app.models.base import Base
 
 APPROVED = "approved"
 PENDING = "pending"
+# Sent by a site visitor; hidden until an editor approves it.
+SUBMITTED = "submitted"
 # Drafts are public too (marked unverified on the site) until an editor reviews them.
 PUBLIC_STATUSES = (APPROVED, PENDING)
 
@@ -120,12 +122,16 @@ class Form(Base):
     status: Mapped[str] = mapped_column(String(10), default=APPROVED, server_default=APPROVED)
     # Id in the source dataset, e.g. a Wikidata lexeme "L2071"
     external_id: Mapped[str | None] = mapped_column(String(50))
+    # Name a visitor gave when submitting the word (optional, shown as attribution)
+    contributor: Mapped[str | None] = mapped_column(String(100))
     source_id: Mapped[int | None] = mapped_column(ForeignKey("source.id"))
 
     concept: Mapped[Concept] = relationship(back_populates="forms")
     variety: Mapped[Variety] = relationship()
     source: Mapped[Source | None] = relationship()
-    audio: Mapped[list["Audio"]] = relationship(back_populates="form")
+    audio: Mapped[list["Audio"]] = relationship(
+        back_populates="form", cascade="all, delete-orphan", passive_deletes=True
+    )
 
 
 class Audio(Base):

@@ -6,10 +6,26 @@ export type EditorForm = {
   ipa: string | null;
   is_primary: boolean;
   /** "approved" words are public; "pending" drafts wait for review. */
-  status: "approved" | "pending";
+  status: "approved" | "pending" | "submitted";
   source: string | null;
   editable: boolean;
+  /** Visitor submissions only */
+  contributor: string | null;
+  place: string | null;
+  audio_urls: string[];
 };
+
+export type Submission = {
+  form: EditorForm;
+  concept_id: number;
+  concept_gloss_en: string;
+  concept_gloss_uk: string | null;
+  variety_code: string;
+  variety_name_en: string;
+  variety_name_uk: string | null;
+};
+
+export const listSubmissions = (token: string) => request<Submission[]>(token, "/submissions");
 
 export type EditorConcept = {
   id: number;

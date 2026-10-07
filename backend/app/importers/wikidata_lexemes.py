@@ -381,9 +381,11 @@ ENSURE_PRIMARY = text("""
         FROM form
         WHERE (concept_id, variety_id) IN (
             SELECT concept_id, variety_id FROM form
+            WHERE status IN ('approved', 'pending')
             GROUP BY concept_id, variety_id
             HAVING NOT bool_or(is_primary)
         )
+        AND status IN ('approved', 'pending')
         ORDER BY concept_id, variety_id, status = 'approved' DESC, id
     )
 """)

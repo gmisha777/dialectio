@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useState } from "react";
 
-import { localized } from "@/lib/api";
+import { API_URL, localized } from "@/lib/api";
 import {
   addForm,
   approveForm,
@@ -12,25 +12,17 @@ import {
   EditorError,
   type EditorForm,
   listConcepts,
+  listSubmissions,
   listVarieties,
   type EditorVariety,
+  type Submission,
 } from "@/lib/editor";
+import { sortVarieties } from "@/lib/varieties";
 
 const DEFAULT_VARIETY = "ukr";
-
-/** Ukrainian and its dialects first (the project's focus), then other languages by name. */
-function sortVarieties(varieties: EditorVariety[], locale: string): EditorVariety[] {
-  const focus = (v: EditorVariety) => (v.code === "ukr" || v.code.startsWith("ukr-") ? 0 : 1);
-  return [...varieties].sort(
-    (a, b) =>
-      focus(a) - focus(b) ||
-      Number(a.kind === "dialect") - Number(b.kind === "dialect") ||
-      localized(locale, a.name_en, a.name_uk).localeCompare(localized(locale, b.name_en, b.name_uk)),
-  );
-}
+const TOKEN_KEY = "dialectio.editorToken";
 
 const isApproved = (form: EditorForm) => form.status === "approved";
-const TOKEN_KEY = "dialectio.editorToken";
 
 function readToken(): string {
   try {
@@ -208,6 +200,73 @@ function ConceptRow({
   );
 }
 
+function Submissions({ token }: { token: string }) {
+  const t = useTranslations("Editor");
+  const locale = useLocale();
+  const [items, setItems] = useState<Submission[]>([]);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    listSubmissions(token)
+      .then((result) => !cancelled && setItems(result))
+      .catch(() => !cancelled && setError(true));
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  const act = async (item: Submission, approve: boolean) => {
+    setError(false);
+    try {
+      await (approve ? approveForm(token, item.form.id) : deleteForm(token, item.form.id));
+      setItems((all) => all.filter((i) => i.form.id !== item.form.id));
+    } catch {
+      setError(true);
+    }
+  };
+
+  if (items.length === 0 && !error) return null;
+  return (
+    <section className="mb-6 rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-3">
+      <h2 className="mb-2 font-semibold">{t("submissions", { count: items.length })}</h2>
+      {error && <p className="text-sm text-red-600">{t("saveError")}</p>}
+      <ul className="space-y-2">
+        {items.map((item) => (
+          <li key={item.form.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <span className="opacity-70">
+              {localized(locale, item.concept_gloss_en, item.concept_gloss_uk)} ·{" "}
+              {localized(locale, item.variety_name_en, item.variety_name_uk)}
+            </span>
+            <span className="text-base font-semibold">{item.form.spelling}</span>
+            {item.form.place && <span className="opacity-70">📍 {item.form.place}</span>}
+            {item.form.contributor && <span className="opacity-70">— {item.form.contributor}</span>}
+            {item.form.audio_urls.map((url) => (
+              <audio key={url} src={`${API_URL}${url}`} controls className="h-8" />
+            ))}
+            <button
+              type="button"
+              onClick={() => act(item, true)}
+              aria-label={t("approve", { word: item.form.spelling })}
+              className="font-semibold text-green-700 dark:text-green-400"
+            >
+              ✓
+            </button>
+            <button
+              type="button"
+              onClick={() => act(item, false)}
+              aria-label={t("delete", { word: item.form.spelling })}
+              className="opacity-60 hover:opacity-100"
+            >
+              ✕
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function WordEditor() {
   const t = useTranslations("Editor");
   const locale = useLocale();
@@ -300,6 +359,8 @@ export default function WordEditor() {
         </form>
       )}
       {error && <p className="mb-4 text-red-600">{error}</p>}
+
+      {token && !error && <Submissions token={token} />}
 
       {concepts && (
         <>

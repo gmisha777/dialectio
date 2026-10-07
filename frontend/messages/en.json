@@ -25,7 +25,8 @@
     "attribution": "Words: <wikidata>Wikidata</wikidata> (CC0). Audio: <commons>Wikimedia Commons</commons>; TTS marks synthetic Piper voices. License and author are in the ▶ button tooltip.",
     "playSynthetic": "Play synthetic pronunciation",
     "tts": "TTS",
-    "unverified": "Unverified word: a draft, the concept's Wikidata label or an automatic translation — may be inaccurate"
+    "unverified": "Unverified word: a draft, the concept's Wikidata label or an automatic translation — may be inaccurate",
+    "contribute": "🎙 Know how it's said where you live? Add the word"
   },
   "Editor": {
     "title": "Word editor: {variety}",
@@ -48,10 +49,33 @@
     "approve": "Approve “{word}”",
     "draftHint": "Draft: shown on the site with “≈” until you approve it ✓",
     "drafts": "Awaiting review: {count}",
-    "variety": "Language or dialect"
+    "variety": "Language or dialect",
+    "submissions": "From visitors: {count}"
   },
   "Word": {
     "title": "{word} in different languages — spelling and pronunciation | Dialectio",
     "description": "“{word}” in other languages: {examples} and more — {count, plural, one {# language} other {# languages}} on a map, with pronunciation and audio."
+  },
+  "Contribute": {
+    "title": "How do you say “{word}”?",
+    "close": "Close",
+    "variety": "Language or dialect",
+    "word": "Word",
+    "place": "Town or region (optional)",
+    "placeHint": "e.g. Vyzhnytsia, Chernivtsi Oblast",
+    "name": "Your name for attribution (optional)",
+    "recording": "Pronunciation (optional)",
+    "record": "Record",
+    "recordAgain": "Record again",
+    "stop": "Stop",
+    "removeRecording": "Remove recording",
+    "recordingHint": "Up to 10 seconds. Say the word once or twice, naturally, as you would at home.",
+    "micError": "Could not use the microphone. Allow access in the browser or send just the word.",
+    "consent": "I give Dialectio permanent permission to use and publish this word and recording (including commercially). The word appears on the site after review.",
+    "send": "Send",
+    "sending": "Sending…",
+    "thanks": "Thank you! The word will appear on the map after an editor reviews it.",
+    "error": "Could not send. Please try again.",
+    "tooMany": "Too many submissions. Please try later."
   }
 }

@@ -2,6 +2,9 @@
 
 import { useLocale, useTranslations } from "next-intl";
 
+import { useState } from "react";
+
+import ContributeDialog from "@/components/ContributeDialog";
 import type { SelectedRegion } from "@/components/WorldMap";
 import {
   type Audio as AudioInfo,
@@ -105,6 +108,12 @@ export default function ConceptPanel({
   const locale = useLocale();
   const t = useTranslations("Panel");
   const description = localized(locale, concept.description_en, concept.description_uk);
+  const [contributing, setContributing] = useState(false);
+  // Suggest the dialect of the selected oblast (if any has a word here), else Ukrainian.
+  const defaultVariety =
+    concept.languages.find(
+      (lang) => lang.kind === "dialect" && region && lang.region_codes.includes(region.code),
+    )?.code ?? "ukr";
   // A region shows its own varieties (dialects, regional languages) and its country's languages.
   const languages = region
     ? concept.languages.filter(
@@ -134,6 +143,21 @@ export default function ConceptPanel({
           </button>
         )}
       </div>
+      <button
+        type="button"
+        onClick={() => setContributing(true)}
+        className="mx-4 mt-3 rounded-md border border-dashed border-blue-500/60 px-3 py-2 text-left text-sm text-blue-700 hover:bg-blue-500/10 dark:text-blue-300"
+      >
+        {t("contribute")}
+      </button>
+      {contributing && (
+        <ContributeDialog
+          conceptId={concept.id}
+          conceptName={localized(locale, concept.gloss_en, concept.gloss_uk)}
+          defaultVariety={defaultVariety}
+          onClose={() => setContributing(false)}
+        />
+      )}
       <ul className="flex-1 overflow-y-auto px-4">
         {languages.length === 0 && <li className="py-3 text-sm opacity-60">{t("noWords")}</li>}
         {languages.map((language) => (

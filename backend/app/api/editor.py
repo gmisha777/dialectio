@@ -12,10 +12,10 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.config import settings
+from app.config import MEDIA_DIR, MEDIA_URL_PREFIX, settings
 from app.db.session import get_session
 from app.importers.common import upsert_source
-from app.models import APPROVED, PENDING, Concept, Form, Variety
+from app.models import APPROVED, PENDING, PUBLIC_STATUSES, SUBMITTED, Concept, Form, Variety
 
 EDITOR_SOURCE_NAME = "Dialectio editors"
 EDITOR_SOURCE_URL = "https://github.com/gmisha777/dialectio"
@@ -23,7 +23,9 @@ EDITOR_SOURCE_URL = "https://github.com/gmisha777/dialectio"
 EDITOR_SOURCE_LICENSE = "All rights reserved (Dialectio)"
 # Drafts proposed for review (e.g. generated); they become editor words once approved.
 SUGGESTION_SOURCE_NAME = "Dialectio suggestions (draft)"
-OWN_SOURCES = (EDITOR_SOURCE_NAME, SUGGESTION_SOURCE_NAME)
+# Visitor submissions (see app.api.contribute)
+CONTRIBUTOR_SOURCE_NAME = "Dialectio contributors"
+OWN_SOURCES = (EDITOR_SOURCE_NAME, SUGGESTION_SOURCE_NAME, CONTRIBUTOR_SOURCE_NAME)
 
 # Varieties shown as hints next to each concept in the editor (standard Ukrainian first,
 # useful when editing dialects)
@@ -50,6 +52,20 @@ class EditorForm(BaseModel):
     status: str
     source: str | None
     editable: bool
+    # Visitor submissions: who sent it, from where, and their recording
+    contributor: str | None = None
+    place: str | None = None
+    audio_urls: list[str] = []
+
+
+class Submission(BaseModel):
+    form: EditorForm
+    concept_id: int
+    concept_gloss_en: str
+    concept_gloss_uk: str | None
+    variety_code: str
+    variety_name_en: str
+    variety_name_uk: str | None
 
 
 class EditorConcept(BaseModel):
@@ -101,6 +117,9 @@ def to_editor_form(form: Form) -> EditorForm:
         status=form.status,
         source=source,
         editable=source in OWN_SOURCES,
+        contributor=form.contributor,
+        place=form.note if form.status == SUBMITTED else None,
+        audio_urls=[a.url for a in form.audio] if form.status == SUBMITTED else [],
     )
 
 
@@ -223,17 +242,58 @@ def add_form(session: SessionDep, payload: NewForm) -> EditorForm:
     return to_editor_form(form)
 
 
+@router.get("/submissions")
+def list_submissions(session: SessionDep) -> list[Submission]:
+    """Words sent by visitors, waiting for review (oldest first)."""
+    forms = session.scalars(
+        select(Form)
+        .where(Form.status == SUBMITTED)
+        .options(
+            selectinload(Form.concept),
+            selectinload(Form.variety),
+            selectinload(Form.source),
+            selectinload(Form.audio),
+        )
+        .order_by(Form.id)
+    )
+    return [
+        Submission(
+            form=to_editor_form(f),
+            concept_id=f.concept.id,
+            concept_gloss_en=f.concept.gloss_en,
+            concept_gloss_uk=f.concept.gloss_uk,
+            variety_code=f.variety.code,
+            variety_name_en=f.variety.name_en,
+            variety_name_uk=f.variety.name_uk,
+        )
+        for f in forms
+    ]
+
+
 @router.post("/forms/{form_id}/approve")
 def approve_form(session: SessionDep, form_id: int) -> EditorForm:
     form = get_own_form(session, form_id)
-    if form.status != PENDING:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Only pending drafts can be approved")
-    form.is_primary = not has_approved_primary(session, form.concept_id, form.variety_id)
+    if form.status not in (PENDING, SUBMITTED):
+        raise HTTPException(status.HTTP_409_CONFLICT, "Only drafts and submissions can be approved")
+    if form.status == PENDING:
+        # A reviewed draft is an editor's word from now on.
+        form.source = upsert_source(
+            session, EDITOR_SOURCE_NAME, EDITOR_SOURCE_URL, EDITOR_SOURCE_LICENSE
+        )
+    # Visitor words keep their source (and the visitor's name) for attribution.
+    others = session.scalars(
+        select(Form).where(
+            Form.concept_id == form.concept_id,
+            Form.variety_id == form.variety_id,
+            Form.id != form.id,
+        )
+    ).all()
+    # A reviewed word replaces an unreviewed draft as the main word.
+    for other in others:
+        if other.status == PENDING and other.is_primary:
+            other.is_primary = False
+    form.is_primary = not any(o.is_primary and o.status == APPROVED for o in others)
     form.status = APPROVED
-    # A reviewed draft is an editor's word from now on.
-    form.source = upsert_source(
-        session, EDITOR_SOURCE_NAME, EDITOR_SOURCE_URL, EDITOR_SOURCE_LICENSE
-    )
     session.commit()
     return to_editor_form(form)
 
@@ -243,13 +303,21 @@ def delete_form(session: SessionDep, form_id: int) -> None:
     form = get_own_form(session, form_id)
     was_primary = form.is_primary
     concept_id, variety_id = form.concept_id, form.variety_id
+    # Visitors' recordings are our own files; imported audio points elsewhere.
+    for audio in form.audio:
+        if audio.url.startswith(f"{MEDIA_URL_PREFIX}/contrib/"):
+            (MEDIA_DIR / audio.url.removeprefix(f"{MEDIA_URL_PREFIX}/")).unlink(missing_ok=True)
     session.delete(form)
     session.flush()
     if was_primary:
         # Promote another word (oldest id) so the concept keeps a primary form in this language.
         replacement = session.scalars(
             select(Form)
-            .where(Form.concept_id == concept_id, Form.variety_id == variety_id)
+            .where(
+                Form.concept_id == concept_id,
+                Form.variety_id == variety_id,
+                Form.status.in_(PUBLIC_STATUSES),
+            )
             .order_by((Form.status == APPROVED).desc(), Form.id)
         ).first()
         if replacement:
