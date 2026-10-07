@@ -24,7 +24,8 @@
     "synthetic": "синтезований голос",
     "attribution": "Слова: <wikidata>Wikidata</wikidata> (CC0). Аудіо: <commons>Wikimedia Commons</commons>; позначене TTS — синтезоване голосами Piper. Ліцензія й автор — у підказці кнопки ▶.",
     "playSynthetic": "Прослухати синтезовану вимову",
-    "tts": "TTS"
+    "tts": "TTS",
+    "unverified": "Неперевірене слово: взяте з назви поняття у Wikidata або перекладене автоматично, може бути неточним"
   },
   "Editor": {
     "title": "Редактор слів: українська",

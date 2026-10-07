@@ -37,12 +37,16 @@ class AudioOut(ORMModel):
     is_synthetic: bool
 
 
-class FormOut(ORMModel):
+class FormOut(BaseModel):
     spelling: str
     ipa: str | None
     transliteration: str | None
     is_primary: bool
     external_id: str | None
+    source: str | None = None
+    # True for words not checked by a person or a dictionary (taken from concept labels or
+    # generated automatically); the site marks them as possibly inaccurate.
+    unverified: bool = False
     audio: list[AudioOut]
 
 

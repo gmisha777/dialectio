@@ -38,6 +38,9 @@ export type Form = {
   transliteration: string | null;
   is_primary: boolean;
   external_id: string | null;
+  source: string | null;
+  /** Not checked by a person or a dictionary: shown as possibly inaccurate. */
+  unverified: boolean;
   audio: Audio[];
 };
 

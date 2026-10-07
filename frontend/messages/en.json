@@ -24,7 +24,8 @@
     "synthetic": "synthetic voice",
     "attribution": "Words: <wikidata>Wikidata</wikidata> (CC0). Audio: <commons>Wikimedia Commons</commons>; TTS marks synthetic Piper voices. License and author are in the ▶ button tooltip.",
     "playSynthetic": "Play synthetic pronunciation",
-    "tts": "TTS"
+    "tts": "TTS",
+    "unverified": "Unverified word: taken from the concept's Wikidata label or translated automatically, may be inaccurate"
   },
   "Editor": {
     "title": "Word editor: Ukrainian",

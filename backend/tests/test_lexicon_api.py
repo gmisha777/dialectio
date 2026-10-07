@@ -57,7 +57,8 @@ def test_concept_detail_has_forms_and_map_labels() -> None:
     labels = {
         f["properties"]["code"]: f["properties"]["text"] for f in detail["labels"]["features"]
     }
-    assert labels["UKR"] == "вода"
+    # Ukrainian first; Crimean Tatar is also mapped to Ukraine at country level
+    assert labels["UKR"].split(" / ")[0] == "вода"
 
 
 def test_concept_detail_404() -> None:

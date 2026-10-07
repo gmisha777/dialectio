@@ -6,6 +6,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.schemas import (
+    AudioOut,
     ConceptDetail,
     ConceptLink,
     ConceptSummary,
@@ -17,6 +18,9 @@ from app.db.session import get_session
 from app.models import APPROVED, Concept, Form, Variety
 
 router = APIRouter(prefix="/api", tags=["lexicon"])
+
+# Sources whose words nobody has checked; shown with an "approximate" mark on the site.
+UNVERIFIED_SOURCES = {"Wikidata item labels", "Dialectio machine drafts (unverified)"}
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
@@ -66,7 +70,9 @@ LABELS = text("""
                coalesce(r.label_point, ST_PointOnSurface(r.geom)) AS point,
                coalesce(r.label_rank, 10) AS rank,
                ST_Area(r.geom) AS area,
-               string_agg(DISTINCT f.spelling, ' / ') AS spellings
+               -- main languages first: varieties are created in configuration order
+               -- (e.g. Ukrainian before Crimean Tatar on Ukraine)
+               string_agg(f.spelling, ' / ' ORDER BY f.variety_id) AS spellings
         FROM form f
         JOIN variety_region vr ON vr.variety_id = f.variety_id
         JOIN region r ON r.id = vr.region_id
@@ -154,6 +160,7 @@ def build_detail(session: Session, concept: Concept) -> ConceptDetail:
         .where(Form.concept_id == concept.id, Form.status == APPROVED)
         .options(
             selectinload(Form.audio),
+            selectinload(Form.source),
             selectinload(Form.variety).selectinload(Variety.regions),
         )
         .order_by(Form.variety_id, Form.is_primary.desc(), Form.spelling)
@@ -172,7 +179,19 @@ def build_detail(session: Session, concept: Concept) -> ConceptDetail:
                 region_codes=sorted(r.code for r in variety.regions),
                 forms=[],
             )
-        entry.forms.append(FormOut.model_validate(form))
+        source = form.source.name if form.source else None
+        entry.forms.append(
+            FormOut(
+                spelling=form.spelling,
+                ipa=form.ipa,
+                transliteration=form.transliteration,
+                is_primary=form.is_primary,
+                external_id=form.external_id,
+                source=source,
+                unverified=source in UNVERIFIED_SOURCES,
+                audio=[AudioOut.model_validate(a) for a in form.audio],
+            )
+        )
 
     labels = json.loads(session.execute(LABELS, {"concept_id": concept.id}).scalar_one())
     summary = ConceptSummary.model_validate(concept)

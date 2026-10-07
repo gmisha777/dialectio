@@ -1,4 +1,10 @@
-from app.importers.wikidata_lexemes import Lexeme, english_gloss, pick_primary
+from app.importers.wikidata_lexemes import (
+    Lexeme,
+    english_gloss,
+    label_as_word,
+    label_word,
+    pick_primary,
+)
 
 
 def lexeme(lid: str, lemma: str, audio: bool = False, ipa: bool = False) -> Lexeme:
@@ -52,3 +58,20 @@ def test_label_wins_when_no_lexeme_resembles_it() -> None:
     )
     # multi-word labels are not used as words
     assert pick_primary([lexeme("L1", "cop")], "police officer").lemma == "cop"
+
+
+def test_label_as_word() -> None:
+    assert label_as_word("uisce", "water", "gle")
+    assert label_as_word("ماء", "water", "ara")
+    assert label_as_word("Waasser", "water", "ltz")
+    assert not label_as_word("кінь свійський", "horse", "ukr")
+    assert not label_as_word("Rhopalocera", "rhopalocera", "lat")
+    assert not label_as_word("Q42 (x)", "x", "isl")
+    assert not label_as_word(None, "water", "isl")
+
+
+def test_label_word_lowercases_title_case() -> None:
+    assert label_word("Жаңбыр", "rain", "kaz") == "жаңбыр"
+    assert label_word("Luna", "Moon", "lat") == "Luna"  # proper noun
+    assert label_word("Wasser", "water", "deu") == "Wasser"  # German nouns
+    assert label_word("UNESCO", "unesco", "pol") == "UNESCO"  # not title case

@@ -281,6 +281,35 @@ def strip_html(value: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", value)).strip()
 
 
+ITEM_LABELS_SOURCE = "Wikidata item labels"
+# Languages that capitalise common nouns, so a capitalised label is not a sign of a name.
+CAPITALISED_NOUNS = {"deu", "ltz"}
+
+
+def label_as_word(label: str | None, english_label: str, iso639_3: str) -> bool:
+    """Whether a concept label can stand in for a word: one token, no digits or brackets,
+    and not a Latin taxon name copied from English ("Rhopalocera")."""
+    if not label or len(label) > 40 or " " in label.strip():
+        return False
+    if any(ch.isdigit() or ch in "()[],;/" for ch in label):
+        return False
+    looks_latin_name = label[0].isupper() and label.lower() == english_label and label.isascii()
+    return not (looks_latin_name and iso639_3 not in CAPITALISED_NOUNS | {"eng"})
+
+
+def label_word(label: str, english_label: str, iso639_3: str) -> str:
+    """Labels are often capitalised like titles ("Жаңбыр"); words are not, except in
+    languages that capitalise nouns and for proper nouns (the English label is capitalised)."""
+    if (
+        iso639_3 not in CAPITALISED_NOUNS
+        and label[:1].isupper()
+        and label[1:] == label[1:].lower()
+        and not english_label[:1].isupper()
+    ):
+        return label[0].lower() + label[1:]
+    return label
+
+
 def same_stem(a: str, b: str) -> bool:
     """Rough match of inflected forms ("риба" / "риби"): long common prefix."""
     common = len(os.path.commonprefix([a, b]))
@@ -467,7 +496,15 @@ def main() -> None:
             concepts[qid] = concept
         session.flush()
 
-        session.execute(delete(Form).where(Form.source_id == wikidata.id))
+        item_labels_source = upsert_source(
+            session,
+            ITEM_LABELS_SOURCE,
+            "https://www.wikidata.org/wiki/Help:Label",
+            "CC0 1.0",
+        )
+        session.execute(
+            delete(Form).where(Form.source_id.in_([wikidata.id, item_labels_source.id]))
+        )
         session.flush()
 
         # Words from other sources (e.g. our editors) are kept: don't duplicate their spelling
@@ -495,7 +532,7 @@ def main() -> None:
                         spelling=label[:200],
                         is_primary=not has_primary,
                         external_id=qid,
-                        source=wikidata,
+                        source=item_labels_source,
                     )
                 )
                 form_count += 1
@@ -526,6 +563,37 @@ def main() -> None:
                         audio_count += 1
                 session.add(form)
                 form_count += 1
+
+        # Languages without any lexeme for a concept get the concept's label in that language,
+        # when it looks like a single word (less reliable than lexemes, but CC0 and broad).
+        label_count = 0
+        for qid, concept in concepts.items():
+            english_label = labels.get(qid, {}).get("label_en") or concept.gloss_en
+            english = english_label.lower()
+            for lang in LANGUAGES:
+                if (qid, lang.wikidata_id) in lexemes:
+                    continue
+                label = item_labels.get((qid, lang.wikidata_id))
+                variety = varieties[lang.wikidata_id]
+                # Editor words and pending drafts take precedence over labels.
+                if other_forms[(concept.id, variety.id)]:
+                    continue
+                if not label_as_word(label, english, lang.iso639_3):
+                    continue
+                label = label_word(label, english_label, lang.iso639_3)
+                session.add(
+                    Form(
+                        concept=concept,
+                        variety=variety,
+                        spelling=label,
+                        is_primary=True,
+                        external_id=qid,
+                        source=item_labels_source,
+                    )
+                )
+                label_count += 1
+        print(f"  {label_count} words taken from concept labels")
+        form_count += label_count
 
         session.flush()
         assign_missing_slugs(session)

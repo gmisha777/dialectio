@@ -41,6 +41,15 @@ function AudioButtons({ audio }: { audio: AudioInfo[] }) {
   );
 }
 
+function Approximate() {
+  const t = useTranslations("Panel");
+  return (
+    <span title={t("unverified")} aria-label={t("unverified")} className="cursor-help text-sm opacity-60">
+      ≈
+    </span>
+  );
+}
+
 function LanguageCard({ language }: { language: LanguageForms }) {
   const locale = useLocale();
   const t = useTranslations("Panel");
@@ -53,6 +62,7 @@ function LanguageCard({ language }: { language: LanguageForms }) {
       </div>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <span className="text-xl font-semibold">{primary.spelling}</span>
+        {primary.unverified && <Approximate />}
         {primary.ipa && <span className="font-mono text-sm opacity-80">{primary.ipa}</span>}
         <AudioButtons audio={primary.audio} />
       </div>
