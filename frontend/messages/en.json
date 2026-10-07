@@ -79,5 +79,59 @@
     "thanks": "Thank you! The word will appear on the map after an editor reviews it.",
     "error": "Could not send. Please try again.",
     "tooMany": "Too many submissions. Please try later."
+  },
+  "Nav": {
+    "about": "About",
+    "sources": "Sources",
+    "privacy": "Privacy",
+    "map": "Map"
+  },
+  "About": {
+    "title": "About",
+    "metaDescription": "Dialectio is a map of how words sound in the world's languages and in Ukrainian dialects. How to read the map and where the data comes from.",
+    "intro": "Dialectio shows on a map how the same concept is written, pronounced and sounds in the world's languages and in the dialects of Ukrainian. It is a popular-science project: it aims to spark curiosity, not to replace a dictionary.",
+    "numbers": "On the map now: {concepts} concepts, {languages} languages, {dialects} dialects, {words} words and {recordings} recordings by real speakers.",
+    "howTitle": "How to read the map",
+    "how1": "Type a word in any language and pick a suggestion: countries that have a translation light up and the words appear on the map.",
+    "how2": "Zoom in on Ukraine or its neighbours: from a certain zoom level, words are shown per region instead of per country. Dialect words are purple.",
+    "how3": "Click a country or region to keep only the languages and dialects spoken there in the panel.",
+    "how4": "IPA in square brackets is the pronunciation in the International Phonetic Alphabet. The ▶ button plays a recording; TTS marks a synthetic voice.",
+    "how5": "The ≈ mark means an unverified word: a draft, a Wikidata concept label or a machine translation. These may be inaccurate, and we are checking them step by step.",
+    "dialectsTitle": "Ukrainian dialects",
+    "dialects": "Dialects follow the classic scheme: three dialect groups (Northern, South-Western, South-Eastern) and 15 dialects. Dialect areas are approximated by regions, which is a simplification: real dialect borders do not follow administrative ones. Lemko and Nadsian are also shown in Poland and Slovakia.",
+    "helpTitle": "How to help",
+    "help": "Do you know how this word is said in your village or town? Click “Know how it’s said where you live?” in the word panel, type the word and, if you like, record it. Contributions appear on the site after an editor reviews them.",
+    "feedback": "Spotted a mistake? Tell us on <link>GitHub</link>."
+  },
+  "Sources": {
+    "title": "Sources and licenses",
+    "metaDescription": "Where Dialectio gets its words, pronunciations, audio and maps, and under which licenses.",
+    "intro": "Every word and recording on the site keeps its source. The license and author of each recording are shown in the tooltip of its ▶ button.",
+    "name": "Source",
+    "license": "License",
+    "words": "Words",
+    "recordings": "Recordings",
+    "mapTitle": "Map",
+    "map": "Country and region borders come from Natural Earth (public domain), in the Ukrainian point-of-view edition. Basemap © OpenStreetMap contributors (ODbL). The map is rendered with MapLibre GL.",
+    "ttsTitle": "Synthetic pronunciation",
+    "tts": "Where no real recording exists, pronunciation is synthesized with Piper, using only voices whose license allows this use. These recordings are marked TTS.",
+    "ownTitle": "Dialectio's own data",
+    "own": "Words added by editors, drafts and Dialectio's machine translations are protected by copyright (all rights reserved). Visitor contributions are published with their permission."
+  },
+  "Privacy": {
+    "title": "Privacy policy",
+    "metaDescription": "What data Dialectio collects and how it is used.",
+    "updated": "Updated: 7 October 2026",
+    "intro": "You can use Dialectio without an account. We show no ads and use no trackers.",
+    "contribTitle": "When you add a word",
+    "contrib": "We store what you enter in the form: the word, the language or dialect, the place, your name (optional) and a voice recording (optional). Your name and place may be shown next to the word after review. By sending a contribution you allow Dialectio to publish it.",
+    "ipTitle": "IP address",
+    "ip": "To fight spam, the server temporarily remembers how many contributions came from an IP address in the last hour. This is not written to the database.",
+    "browserTitle": "In your browser",
+    "browser": "The site remembers in your browser (localStorage) the dialect you last picked in the contribution form, so you don't have to pick it again. This is not sent to us.",
+    "thirdTitle": "Third-party services",
+    "third": "The basemap is loaded from OpenStreetMap servers and some audio from Wikimedia Commons. These services see your IP address, like any site your browser loads something from.",
+    "deleteTitle": "Deletion",
+    "delete": "To delete your contribution or voice recording, write to us on <link>GitHub</link> with the word and the dialect."
   }
 }

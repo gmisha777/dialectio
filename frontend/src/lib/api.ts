@@ -123,3 +123,26 @@ export function localized(locale: string, en: string | null, uk: string | null):
 export function localized(locale: string, en: string | null, uk: string | null) {
   return locale === "uk" ? (uk ?? en) : (en ?? uk);
 }
+
+export type SourceStats = {
+  name: string;
+  url: string | null;
+  license: string;
+  words: number;
+  recordings: number;
+};
+
+export type Stats = {
+  concepts: number;
+  languages: number;
+  dialects: number;
+  words: number;
+  recordings: number;
+  synthetic_recordings: number;
+  sources: SourceStats[];
+};
+
+/** Server-side: site-wide numbers and data sources. */
+export function getStats() {
+  return getServerJson<Stats>("/api/stats");
+}

@@ -127,3 +127,13 @@ def test_region_labels_show_dialect_words() -> None:
         with SessionLocal() as session:
             session.delete(session.get(Form, form_id))
             session.commit()
+
+
+def test_stats_count_public_data_and_list_sources() -> None:
+    stats = client.get("/api/stats").json()
+    assert stats["concepts"] > 100
+    assert stats["languages"] > 40
+    assert stats["dialects"] >= 15
+    names = {s["name"] for s in stats["sources"]}
+    assert {"Wikidata Lexemes", "Wikimedia Commons"} <= names
+    assert stats["words"] == sum(s["words"] for s in stats["sources"])

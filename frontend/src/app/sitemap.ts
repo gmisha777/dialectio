@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { INFO_PAGES } from "@/components/InfoPage";
 import { routing } from "@/i18n/routing";
 import { listConceptLinks, SITE_URL } from "@/lib/api";
 
@@ -14,7 +15,7 @@ function alternates(path: string) {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const concepts = await listConceptLinks();
-  const paths = ["", ...concepts.map((c) => `/word/${c.slug}`)];
+  const paths = ["", ...INFO_PAGES.map((page) => `/${page}`), ...concepts.map((c) => `/word/${c.slug}`)];
 
   return paths.flatMap((path) =>
     routing.locales.map((locale) => ({

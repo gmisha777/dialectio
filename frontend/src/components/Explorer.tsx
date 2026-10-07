@@ -4,6 +4,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import ConceptPanel from "@/components/ConceptPanel";
+import { InfoNav } from "@/components/InfoPage";
 import LocaleSwitcher from "@/components/LocaleSwitcher";
 import SearchBox from "@/components/SearchBox";
 import WorldMap, { type SelectedRegion } from "@/components/WorldMap";
@@ -72,6 +73,7 @@ export default function Explorer({
           Dialectio
         </Link>
         <SearchBox onSelect={selectHit} />
+        <InfoNav className="hidden shrink-0 lg:flex" />
         <LocaleSwitcher />
       </header>
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
@@ -91,7 +93,10 @@ export default function Explorer({
               onClearRegion={() => setRegion(null)}
             />
           ) : (
-            <p className="p-4 text-sm opacity-70">{error ? t("loadError") : t("hint")}</p>
+            <div className="space-y-4 p-4">
+              <p className="text-sm opacity-70">{error ? t("loadError") : t("hint")}</p>
+              <InfoNav />
+            </div>
           )}
         </div>
       </div>
