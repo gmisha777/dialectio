@@ -377,16 +377,21 @@ def fetch_item_labels(
 ENSURE_PRIMARY = text("""
     UPDATE form SET is_primary = true
     WHERE id IN (
-        SELECT min(id) FROM form
-        WHERE status = 'approved'
-        GROUP BY concept_id, variety_id
-        HAVING NOT bool_or(is_primary)
+        SELECT DISTINCT ON (concept_id, variety_id) id
+        FROM form
+        WHERE (concept_id, variety_id) IN (
+            SELECT concept_id, variety_id FROM form
+            GROUP BY concept_id, variety_id
+            HAVING NOT bool_or(is_primary)
+        )
+        ORDER BY concept_id, variety_id, status = 'approved' DESC, id
     )
 """)
 
 
 def ensure_one_primary(session: Session) -> int:
-    """Give every (concept, language) without a primary form its oldest approved form."""
+    """Give every (concept, language) without a primary form one: the oldest approved form,
+    or else the oldest draft."""
     return session.execute(ENSURE_PRIMARY).rowcount
 
 

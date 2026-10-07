@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 from app.config import MEDIA_DIR, MEDIA_URL_PREFIX
 from app.db.session import SessionLocal
 from app.importers.common import RAW_DIR, upsert_source
-from app.models import APPROVED, Audio, Form, Variety
+from app.models import PUBLIC_STATUSES, Audio, Form, Variety
 
 VOICES_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main"
 VOICE_DIR = RAW_DIR / "piper"
@@ -174,7 +174,7 @@ def forms_needing_audio(session: Session, variety_ids: list[int]) -> list[Form]:
             select(Form).where(
                 Form.variety_id.in_(variety_ids),
                 Form.is_primary,
-                Form.status == APPROVED,
+                Form.status.in_(PUBLIC_STATUSES),
                 ~recorded,
             )
         )

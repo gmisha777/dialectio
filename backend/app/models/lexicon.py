@@ -22,6 +22,8 @@ from app.models.base import Base
 
 APPROVED = "approved"
 PENDING = "pending"
+# Drafts are public too (marked unverified on the site) until an editor reviews them.
+PUBLIC_STATUSES = (APPROVED, PENDING)
 
 variety_region = Table(
     "variety_region",

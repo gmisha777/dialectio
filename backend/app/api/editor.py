@@ -205,6 +205,10 @@ def add_form(session: SessionDep, payload: NewForm) -> EditorForm:
         raise HTTPException(status.HTTP_409_CONFLICT, "This word already exists")
 
     source = upsert_source(session, EDITOR_SOURCE_NAME, EDITOR_SOURCE_URL, EDITOR_SOURCE_LICENSE)
+    # An editor's word replaces an unreviewed draft as the main word.
+    for draft in existing:
+        if draft.status == PENDING and draft.is_primary:
+            draft.is_primary = False
     form = Form(
         concept_id=payload.concept_id,
         variety=variety,
@@ -245,12 +249,8 @@ def delete_form(session: SessionDep, form_id: int) -> None:
         # Promote another word (oldest id) so the concept keeps a primary form in this language.
         replacement = session.scalars(
             select(Form)
-            .where(
-                Form.concept_id == concept_id,
-                Form.variety_id == variety_id,
-                Form.status == APPROVED,
-            )
-            .order_by(Form.id)
+            .where(Form.concept_id == concept_id, Form.variety_id == variety_id)
+            .order_by((Form.status == APPROVED).desc(), Form.id)
         ).first()
         if replacement:
             replacement.is_primary = True

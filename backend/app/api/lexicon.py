@@ -15,7 +15,7 @@ from app.api.schemas import (
     SearchHit,
 )
 from app.db.session import get_session
-from app.models import APPROVED, Concept, Form, Variety
+from app.models import PENDING, PUBLIC_STATUSES, Concept, Form, Variety
 
 router = APIRouter(prefix="/api", tags=["lexicon"])
 
@@ -31,7 +31,7 @@ SEARCH = text("""
     WITH candidates AS (
         SELECT f.concept_id, f.spelling AS matched, f.variety_id, f.is_primary
         FROM form f
-        WHERE f.status = 'approved'
+        WHERE f.status IN ('approved', 'pending')
           AND (lower(f.spelling) LIKE :prefix ESCAPE '\\'
                OR similarity(lower(f.spelling), :q) > 0.4)
         UNION ALL
@@ -129,7 +129,7 @@ def concept_detail(session: SessionDep, concept_id: int) -> ConceptDetail:
 def build_detail(session: Session, concept: Concept) -> ConceptDetail:
     forms = session.scalars(
         select(Form)
-        .where(Form.concept_id == concept.id, Form.status == APPROVED)
+        .where(Form.concept_id == concept.id, Form.status.in_(PUBLIC_STATUSES))
         .options(
             selectinload(Form.audio),
             selectinload(Form.source),
@@ -164,7 +164,7 @@ def build_detail(session: Session, concept: Concept) -> ConceptDetail:
                 is_primary=form.is_primary,
                 external_id=form.external_id,
                 source=source,
-                unverified=source in UNVERIFIED_SOURCES,
+                unverified=source in UNVERIFIED_SOURCES or form.status == PENDING,
                 audio=[AudioOut.model_validate(a) for a in form.audio],
             )
         )

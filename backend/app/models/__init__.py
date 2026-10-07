@@ -2,6 +2,7 @@ from app.models.base import Base
 from app.models.lexicon import (
     APPROVED,
     PENDING,
+    PUBLIC_STATUSES,
     Audio,
     Concept,
     Form,
@@ -14,6 +15,7 @@ from app.models.lexicon import (
 __all__ = [
     "APPROVED",
     "PENDING",
+    "PUBLIC_STATUSES",
     "Audio",
     "Base",
     "Concept",

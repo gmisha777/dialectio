@@ -20,7 +20,7 @@ REGION_WORDS = text("""
     JOIN variety v ON v.id = f.variety_id
     JOIN variety_region vr ON vr.variety_id = v.id
     JOIN region r ON r.id = vr.region_id
-    WHERE f.concept_id = :concept_id AND f.is_primary AND f.status = 'approved'
+    WHERE f.concept_id = :concept_id AND f.is_primary AND f.status IN ('approved', 'pending')
     ORDER BY v.id
 """)
 

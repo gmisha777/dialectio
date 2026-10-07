@@ -71,7 +71,8 @@ def load(code: str, machine: bool) -> None:
                     concept=concept,
                     variety=variety,
                     spelling=word.strip(),
-                    is_primary=machine,
+                    # Only concepts without any word in this variety get one, so it's the main word.
+                    is_primary=True,
                     status=APPROVED if machine else PENDING,
                     source=source,
                 )

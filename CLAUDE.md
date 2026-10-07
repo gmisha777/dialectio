@@ -14,7 +14,8 @@ Full plan and decisions: [docs/plan.md](docs/plan.md). Communicate with the user
 - Varieties are identified by `Variety.code`: ISO 639-3 for languages, `<language>-<name>` for dialects (`ukr-hutsul`). Dialect territories are oblasts (`app/importers/dialects.py`); the map shows oblast labels instead of the country label from zoom 5.
 - Every imported record must keep its `Source` (name, url, license).
 - Synthetic (TTS) audio must be flagged `is_synthetic`.
-- Forms have `status`: only `approved` ones are public (search, word pages, map). `pending` drafts (source "Dialectio suggestions (draft)", loaded by `app.importers.suggestions`) wait for review in the editor. Every public query must filter on `status = 'approved'`.
+- Forms have `status`: `approved` or `pending` (drafts from `app.importers.suggestions`, source "Dialectio suggestions (draft)"). Both are public (`PUBLIC_STATUSES`); drafts are marked unverified ("≈") until approved in the editor. Public queries must filter on `PUBLIC_STATUSES`.
+- Only one uvicorn may listen on port 8000: an orphaned old server keeps serving stale code. If changes don't show up, check `Get-NetTCPConnection -LocalPort 8000` and stop stray processes.
 - Concept slugs (`/[locale]/word/[slug]`) are permanent once assigned (`app/slugs.py`); never recompute them, URLs are indexed by search engines.
 - Use only free/open data sources and libraries; no Google Maps.
 - UI strings live in `frontend/messages/{uk,en}.json` (next-intl); routes are prefixed with the locale (`/uk`, `/en`), default `uk`. Never hardcode UI text in components.

@@ -76,7 +76,7 @@ def test_cannot_delete_imported_word() -> None:
     assert response.status_code == 403
 
 
-def test_pending_draft_is_hidden_until_approved() -> None:
+def test_pending_draft_is_public_but_unverified_until_approved() -> None:
     from sqlalchemy import select
 
     from app.api.editor import EDITOR_SOURCE_LICENSE, EDITOR_SOURCE_URL, SUGGESTION_SOURCE_NAME
@@ -84,26 +84,33 @@ def test_pending_draft_is_hidden_until_approved() -> None:
     from app.importers.common import upsert_source
     from app.models import PENDING, Form, Variety
 
-    missing = next(c for c in concepts() if not approved_forms(c))
+    concept = next(c for c in concepts("ukr-hutsul") if not c["forms"])
     with SessionLocal() as session:
         source = upsert_source(
             session, SUGGESTION_SOURCE_NAME, EDITOR_SOURCE_URL, EDITOR_SOURCE_LICENSE
         )
-        ukr = session.scalar(select(Variety).where(Variety.iso639_3 == "ukr"))
+        hutsul = session.scalar(select(Variety).where(Variety.code == "ukr-hutsul"))
         draft = Form(
-            concept_id=missing["id"],
-            variety=ukr,
+            concept_id=concept["id"],
+            variety=hutsul,
             spelling="чернеткатест",
             status=PENDING,
+            is_primary=True,
             source=source,
         )
         session.add(draft)
         session.commit()
         draft_id = draft.id
+
+    def public_form() -> dict:
+        detail = client.get(f"/api/concepts/{concept['id']}").json()
+        lang = next(lang for lang in detail["languages"] if lang["code"] == "ukr-hutsul")
+        return lang["forms"][0]
+
     try:
-        assert client.get("/api/search", params={"q": "чернеткатест"}).json() == []
-        row = next(c for c in concepts() if c["id"] == missing["id"])
-        assert row["forms"][0]["status"] == "pending" and row["forms"][0]["editable"]
+        hits = client.get("/api/search", params={"q": "чернеткатест"}).json()
+        assert hits and hits[0]["matched_spelling"] == "чернеткатест"
+        assert public_form()["unverified"]
 
         approved = client.post(f"/api/editor/forms/{draft_id}/approve", headers=auth())
         assert approved.status_code == 200
@@ -113,8 +120,24 @@ def test_pending_draft_is_hidden_until_approved() -> None:
         assert (
             client.post(f"/api/editor/forms/{draft_id}/approve", headers=auth()).status_code == 409
         )
-
-        hits = client.get("/api/search", params={"q": "чернеткатест"}).json()
-        assert hits and hits[0]["matched_spelling"] == "чернеткатест"
+        assert not public_form()["unverified"]
     finally:
         client.delete(f"/api/editor/forms/{draft_id}", headers=auth())
+
+
+def test_editor_word_replaces_draft_as_main_word() -> None:
+    concept = next(c for c in concepts() if any(f["status"] == "pending" for f in c["forms"]))
+    draft = next(f for f in concept["forms"] if f["status"] == "pending")
+    payload = {"concept_id": concept["id"], "variety": "ukr", "spelling": "моєслово"}
+    created = client.post("/api/editor/forms", json=payload, headers=auth()).json()
+    try:
+        assert created["is_primary"]
+        forms = {
+            f["id"]: f for f in next(c for c in concepts() if c["id"] == concept["id"])["forms"]
+        }
+        assert not forms[draft["id"]]["is_primary"]
+    finally:
+        client.delete(f"/api/editor/forms/{created['id']}", headers=auth())
+    # deleting the editor word gives the main-word role back to the draft
+    forms = {f["id"]: f for f in next(c for c in concepts() if c["id"] == concept["id"])["forms"]}
+    assert forms[draft["id"]]["is_primary"]
