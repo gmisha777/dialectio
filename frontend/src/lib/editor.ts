@@ -80,5 +80,9 @@ export const addForm = (
 export const approveForm = (token: string, id: number) =>
   request<EditorForm>(token, `/forms/${id}/approve`, { method: "POST" });
 
+/** Make this word the main one for its concept and language. */
+export const setPrimaryForm = (token: string, id: number) =>
+  request<EditorForm>(token, `/forms/${id}/primary`, { method: "POST" });
+
 export const deleteForm = (token: string, id: number) =>
   request<void>(token, `/forms/${id}`, { method: "DELETE" });

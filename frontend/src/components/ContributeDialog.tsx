@@ -51,21 +51,40 @@ function useRecorder() {
   return { recording, blob, error, start, stop, clear: () => setBlob(null) };
 }
 
+const LAST_VARIETY_KEY = "dialectio.contributeVariety";
+
+function lastVariety(): string | null {
+  try {
+    return localStorage.getItem(LAST_VARIETY_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberVariety(code: string) {
+  try {
+    localStorage.setItem(LAST_VARIETY_KEY, code);
+  } catch {
+    // storage unavailable: the choice just isn't remembered
+  }
+}
+
 export default function ContributeDialog({
   conceptId,
   conceptName,
-  defaultVariety,
+  regionCode,
   onClose,
 }: {
   conceptId: number;
   conceptName: string;
-  defaultVariety: string;
+  /** Oblast selected on the map, if any: its dialect is suggested */
+  regionCode: string | null;
   onClose: () => void;
 }) {
   const t = useTranslations("Contribute");
   const locale = useLocale();
   const [varieties, setVarieties] = useState<Variety[]>([]);
-  const [variety, setVariety] = useState(defaultVariety);
+  const [variety, setVariety] = useState("ukr");
   const [spelling, setSpelling] = useState("");
   const [place, setPlace] = useState("");
   const [contributor, setContributor] = useState("");
@@ -81,9 +100,22 @@ export default function ContributeDialog({
 
   useEffect(() => {
     listPublicVarieties()
-      .then((result) => setVarieties(sortVarieties(result, locale)))
+      .then((result) => {
+        setVarieties(sortVarieties(result, locale));
+        // Suggest what the visitor chose last time if it fits the selected oblast, else the
+        // oblast's dialect (an oblast can have several), else the last choice, else Ukrainian.
+        const regional = result.filter(
+          (v) => v.kind === "dialect" && regionCode && v.region_codes.includes(regionCode),
+        );
+        const last = lastVariety();
+        const remembered = result.find((v) => v.code === last);
+        const suggested = regionCode
+          ? (regional.find((v) => v.code === last) ?? regional[0] ?? remembered)
+          : remembered;
+        setVariety(suggested?.code ?? "ukr");
+      })
       .catch(() => setVarieties([]));
-  }, [locale]);
+  }, [locale, regionCode]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -148,7 +180,10 @@ export default function ContributeDialog({
               <span className="mb-1 block opacity-70">{t("variety")}</span>
               <select
                 value={variety}
-                onChange={(e) => setVariety(e.target.value)}
+                onChange={(e) => {
+                  setVariety(e.target.value);
+                  rememberVariety(e.target.value);
+                }}
                 className="w-full rounded border border-black/15 bg-transparent px-2 py-1.5 dark:border-white/20"
               >
                 {varieties.map((v) => (

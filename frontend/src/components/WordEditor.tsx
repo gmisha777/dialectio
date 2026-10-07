@@ -14,6 +14,7 @@ import {
   listConcepts,
   listSubmissions,
   listVarieties,
+  setPrimaryForm,
   type EditorVariety,
   type Submission,
 } from "@/lib/editor";
@@ -97,6 +98,18 @@ function ConceptRow({
     }
   };
 
+  const makePrimary = async (form: EditorForm) => {
+    setError(null);
+    try {
+      const updated = await setPrimaryForm(token, form.id);
+      onChange(
+        concept.forms.map((f) => (f.id === form.id ? updated : { ...f, is_primary: false })),
+      );
+    } catch {
+      setError(t("saveError"));
+    }
+  };
+
   const approve = async (form: EditorForm) => {
     setError(null);
     try {
@@ -148,6 +161,17 @@ function ConceptRow({
             >
               {form.spelling}
               {form.ipa && <span className="font-mono text-xs opacity-70">{form.ipa}</span>}
+              {form.editable && !form.is_primary && form.status !== "submitted" && (
+                <button
+                  type="button"
+                  onClick={() => makePrimary(form)}
+                  title={t("makePrimary")}
+                  aria-label={t("makePrimaryWord", { word: form.spelling })}
+                  className="text-amber-600 opacity-70 hover:opacity-100"
+                >
+                  ★
+                </button>
+              )}
               {!isApproved(form) && (
                 <button
                   type="button"

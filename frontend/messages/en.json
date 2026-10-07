@@ -50,7 +50,9 @@
     "draftHint": "Draft: shown on the site with “≈” until you approve it ✓",
     "drafts": "Awaiting review: {count}",
     "variety": "Language or dialect",
-    "submissions": "From visitors: {count}"
+    "submissions": "From visitors: {count}",
+    "makePrimary": "Make it the main word",
+    "makePrimaryWord": "Make “{word}” the main word"
   },
   "Word": {
     "title": "{word} in different languages — spelling and pronunciation | Dialectio",

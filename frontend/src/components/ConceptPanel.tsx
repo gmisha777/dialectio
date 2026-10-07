@@ -109,11 +109,7 @@ export default function ConceptPanel({
   const t = useTranslations("Panel");
   const description = localized(locale, concept.description_en, concept.description_uk);
   const [contributing, setContributing] = useState(false);
-  // Suggest the dialect of the selected oblast (if any has a word here), else Ukrainian.
-  const defaultVariety =
-    concept.languages.find(
-      (lang) => lang.kind === "dialect" && region && lang.region_codes.includes(region.code),
-    )?.code ?? "ukr";
+
   // A region shows its own varieties (dialects, regional languages) and its country's languages.
   const languages = region
     ? concept.languages.filter(
@@ -154,7 +150,7 @@ export default function ConceptPanel({
         <ContributeDialog
           conceptId={concept.id}
           conceptName={localized(locale, concept.gloss_en, concept.gloss_uk)}
-          defaultVariety={defaultVariety}
+          regionCode={region?.code ?? null}
           onClose={() => setContributing(false)}
         />
       )}

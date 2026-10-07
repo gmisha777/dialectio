@@ -48,8 +48,9 @@ def test_lists_concepts_with_hints() -> None:
 
 
 def test_add_and_delete_word() -> None:
-    missing = next(c for c in concepts() if not approved_forms(c))
-    payload = {"concept_id": missing["id"], "variety": "ukr", "spelling": "  тестслово "}
+    # a concept with no word at all in this dialect: the new word becomes the main one
+    missing = next(c for c in concepts("ukr-hutsul") if not c["forms"])
+    payload = {"concept_id": missing["id"], "variety": "ukr-hutsul", "spelling": "  тестслово "}
 
     created = client.post("/api/editor/forms", json=payload, headers=auth())
     assert created.status_code == 201
@@ -62,12 +63,12 @@ def test_add_and_delete_word() -> None:
         assert duplicate.status_code == 409
 
         detail = client.get(f"/api/concepts/{missing['id']}").json()
-        ukrainian = next(lang for lang in detail["languages"] if lang["iso639_3"] == "ukr")
-        assert ukrainian["forms"][0]["spelling"] == "тестслово"
+        hutsul = next(lang for lang in detail["languages"] if lang["code"] == "ukr-hutsul")
+        assert hutsul["forms"][0]["spelling"] == "тестслово"
     finally:
         deleted = client.delete(f"/api/editor/forms/{form['id']}", headers=auth())
     assert deleted.status_code == 204
-    assert not approved_forms(next(c for c in concepts() if c["id"] == missing["id"]))
+    assert not next(c for c in concepts("ukr-hutsul") if c["id"] == missing["id"])["forms"]
 
 
 def test_cannot_delete_imported_word() -> None:
@@ -125,19 +126,29 @@ def test_pending_draft_is_public_but_unverified_until_approved() -> None:
         client.delete(f"/api/editor/forms/{draft_id}", headers=auth())
 
 
-def test_editor_word_replaces_draft_as_main_word() -> None:
-    concept = next(c for c in concepts() if any(f["status"] == "pending" for f in c["forms"]))
-    draft = next(f for f in concept["forms"] if f["status"] == "pending")
+def test_new_word_is_added_as_variant_and_star_makes_it_main() -> None:
+    concept = next(
+        c
+        for c in concepts()
+        if any(f["status"] == "pending" and f["is_primary"] for f in c["forms"])
+    )
+    draft = next(f for f in concept["forms"] if f["status"] == "pending" and f["is_primary"])
     payload = {"concept_id": concept["id"], "variety": "ukr", "spelling": "моєслово"}
     created = client.post("/api/editor/forms", json=payload, headers=auth()).json()
+
+    def forms() -> dict[int, dict]:
+        row = next(c for c in concepts() if c["id"] == concept["id"])
+        return {f["id"]: f for f in row["forms"]}
+
     try:
-        assert created["is_primary"]
-        forms = {
-            f["id"]: f for f in next(c for c in concepts() if c["id"] == concept["id"])["forms"]
-        }
-        assert not forms[draft["id"]]["is_primary"]
+        # added next to the existing main word, which stays main
+        assert not created["is_primary"]
+        assert forms()[draft["id"]]["is_primary"]
+        # ★ makes it the main word
+        starred = client.post(f"/api/editor/forms/{created['id']}/primary", headers=auth())
+        assert starred.status_code == 200 and starred.json()["is_primary"]
+        assert not forms()[draft["id"]]["is_primary"]
     finally:
         client.delete(f"/api/editor/forms/{created['id']}", headers=auth())
-    # deleting the editor word gives the main-word role back to the draft
-    forms = {f["id"]: f for f in next(c for c in concepts() if c["id"] == concept["id"])["forms"]}
-    assert forms[draft["id"]]["is_primary"]
+    # deleting the main word gives the role back to the draft
+    assert forms()[draft["id"]]["is_primary"]

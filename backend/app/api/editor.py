@@ -224,16 +224,14 @@ def add_form(session: SessionDep, payload: NewForm) -> EditorForm:
         raise HTTPException(status.HTTP_409_CONFLICT, "This word already exists")
 
     source = upsert_source(session, EDITOR_SOURCE_NAME, EDITOR_SOURCE_URL, EDITOR_SOURCE_LICENSE)
-    # An editor's word replaces an unreviewed draft as the main word.
-    for draft in existing:
-        if draft.status == PENDING and draft.is_primary:
-            draft.is_primary = False
     form = Form(
         concept_id=payload.concept_id,
         variety=variety,
         spelling=payload.spelling,
         ipa=payload.ipa,
-        is_primary=not has_approved_primary(session, payload.concept_id, variety.id),
+        # A new word is added next to the existing ones; the main word only changes on
+        # request (see set_primary).
+        is_primary=not any(f.is_primary and f.status in PUBLIC_STATUSES for f in existing),
         status=APPROVED,
         source=source,
     )
@@ -288,12 +286,29 @@ def approve_form(session: SessionDep, form_id: int) -> EditorForm:
             Form.id != form.id,
         )
     ).all()
-    # A reviewed word replaces an unreviewed draft as the main word.
-    for other in others:
-        if other.status == PENDING and other.is_primary:
-            other.is_primary = False
-    form.is_primary = not any(o.is_primary and o.status == APPROVED for o in others)
+    # An approved word is added as a variant; it only becomes the main word if there is none.
+    form.is_primary = not any(o.is_primary and o.status in PUBLIC_STATUSES for o in others)
     form.status = APPROVED
+    session.commit()
+    return to_editor_form(form)
+
+
+@router.post("/forms/{form_id}/primary")
+def set_primary(session: SessionDep, form_id: int) -> EditorForm:
+    """Make this word the main one for its concept and language (others become variants)."""
+    form = get_own_form(session, form_id)
+    if form.status not in PUBLIC_STATUSES:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Approve the submission first")
+    others = session.scalars(
+        select(Form).where(
+            Form.concept_id == form.concept_id,
+            Form.variety_id == form.variety_id,
+            Form.id != form.id,
+        )
+    )
+    for other in others:
+        other.is_primary = False
+    form.is_primary = True
     session.commit()
     return to_editor_form(form)
 

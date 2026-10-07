@@ -6,6 +6,8 @@ export type Variety = {
   name_en: string;
   name_uk: string | null;
   parent_code: string | null;
+  /** Oblasts (or countries) where it is spoken */
+  region_codes: string[];
 };
 
 export async function listPublicVarieties(): Promise<Variety[]> {
@@ -15,7 +17,7 @@ export async function listPublicVarieties(): Promise<Variety[]> {
 }
 
 /** Ukrainian and its dialects first (the project's focus), then other languages by name. */
-export function sortVarieties<T extends Omit<Variety, "parent_code">>(
+export function sortVarieties<T extends Pick<Variety, "code" | "kind" | "name_en" | "name_uk">>(
   varieties: T[],
   locale: string,
 ): T[] {

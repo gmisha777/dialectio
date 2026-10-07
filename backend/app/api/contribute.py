@@ -59,6 +59,7 @@ class PublicVariety(BaseModel):
     name_en: str
     name_uk: str | None
     parent_code: str | None
+    region_codes: list[str]
 
 
 @router.get("/varieties")
@@ -67,7 +68,7 @@ def list_varieties(session: SessionDep) -> list[PublicVariety]:
     varieties = session.scalars(
         select(Variety)
         .where(Variety.kind != "dialect_group")
-        .options(selectinload(Variety.parent))
+        .options(selectinload(Variety.parent), selectinload(Variety.regions))
         .order_by(Variety.code)
     )
     return [
@@ -77,6 +78,7 @@ def list_varieties(session: SessionDep) -> list[PublicVariety]:
             name_en=v.name_en,
             name_uk=v.name_uk,
             parent_code=v.parent.code if v.parent else None,
+            region_codes=sorted(r.code for r in v.regions),
         )
         for v in varieties
     ]
