@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 
+import type { SelectedRegion } from "@/components/WorldMap";
 import {
   type Audio as AudioInfo,
   API_URL,
@@ -56,7 +57,11 @@ function LanguageCard({ language }: { language: LanguageForms }) {
   const [primary, ...others] = language.forms;
 
   return (
-    <li className="border-b border-black/10 py-3 dark:border-white/10">
+    <li
+      className={`border-b border-black/10 py-3 dark:border-white/10 ${
+        language.kind === "dialect" ? "ml-3 border-l-2 border-l-violet-400 pl-3" : ""
+      }`}
+    >
       <div className="text-xs uppercase tracking-wide opacity-60">
         {localized(locale, language.name_en, language.name_uk)}
       </div>
@@ -90,20 +95,23 @@ function LanguageCard({ language }: { language: LanguageForms }) {
 
 export default function ConceptPanel({
   concept,
-  regionCode,
-  regionName,
+  region,
   onClearRegion,
 }: {
   concept: ConceptDetail;
-  regionCode: string | null;
-  regionName: string | null;
+  region: SelectedRegion | null;
   onClearRegion: () => void;
 }) {
   const locale = useLocale();
   const t = useTranslations("Panel");
   const description = localized(locale, concept.description_en, concept.description_uk);
-  const languages = regionCode
-    ? concept.languages.filter((lang) => lang.region_codes.includes(regionCode))
+  // A region shows its own varieties (dialects, regional languages) and its country's languages.
+  const languages = region
+    ? concept.languages.filter(
+        (lang) =>
+          lang.region_codes.includes(region.code) ||
+          (region.parentCode !== null && lang.region_codes.includes(region.parentCode)),
+      )
     : concept.languages;
 
   return (
@@ -116,13 +124,13 @@ export default function ConceptPanel({
         <p className="mt-1 text-xs opacity-60">
           {t("languageCount", { count: concept.languages.length })}
         </p>
-        {regionCode && (
+        {region && (
           <button
             type="button"
             onClick={onClearRegion}
             className="mt-2 rounded-md bg-blue-500/10 px-2 py-1 text-sm"
           >
-            {regionName ?? regionCode} ✕
+            {region.name} ✕
           </button>
         )}
       </div>

@@ -3,8 +3,10 @@
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { FeatureCollection, Point } from "geojson";
 import type {
+  DataDrivenPropertyValueSpecification,
   FilterSpecification,
   MapGeoJSONFeature,
+  MapMouseEvent,
   Map as MapLibreMap,
   Marker,
   StyleSpecification,
@@ -31,13 +33,33 @@ const OSM_STYLE: StyleSpecification = {
 // Served from public/, see scripts/copy-maplibre-worker.mjs
 const WORKER_URL = "/maplibre/maplibre-gl-worker.mjs";
 
-// Layer name inside the vector tiles served by /api/regions/countries/{z}/{x}/{y}.mvt
+// Vector tiles from /api/regions/tiles/{z}/{x}/{y}.mvt have two layers: countries and their
+// first-level regions (oblasts).
+const SOURCE = "regions";
 const COUNTRIES_LAYER = "countries";
+const REGIONS_LAYER = "regions";
+// From this zoom on, regions (and their dialect words) replace their country.
+const REGIONS_MIN_ZOOM = 5;
 
-type CountryProps = { code: string; name_en: string; name_uk: string | null };
+export type SelectedRegion = { code: string; name: string; parentCode: string | null };
+
+type RegionProps = {
+  code: string;
+  name_en: string;
+  name_uk: string | null;
+  parent_code?: string | null;
+};
 
 // Minimum free space between two visible word labels, in pixels.
 const LABEL_GAP = 2;
+
+// Fill opacity that brightens the feature under the cursor.
+const hoverOpacity = (base: number): DataDrivenPropertyValueSpecification<number> => [
+  "case",
+  ["boolean", ["feature-state", "hover"], false],
+  0.3,
+  base,
+];
 
 const codeFilter = (codes: string[]): FilterSpecification => [
   "in",
@@ -54,7 +76,7 @@ export default function WorldMap({
   highlightCodes: string[];
   labels: FeatureCollection<Point, LabelProps> | null;
   selectedCode: string | null;
-  onSelectRegion: (code: string, name: string) => void;
+  onSelectRegion: (region: SelectedRegion) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -64,7 +86,7 @@ export default function WorldMap({
   const locale = useLocale();
   const localeRef = useRef(locale);
   const [loaded, setLoaded] = useState(false);
-  const [hovered, setHovered] = useState<CountryProps | null>(null);
+  const [hovered, setHovered] = useState<RegionProps | null>(null);
 
   useEffect(() => {
     onSelectRef.current = onSelectRegion;
@@ -89,67 +111,112 @@ export default function WorldMap({
       m.addControl(new NavigationControl(), "top-right");
 
       m.on("load", () => {
-        m.addSource("countries", {
+        m.addSource(SOURCE, {
           type: "vector",
-          tiles: [`${API_URL}/api/regions/countries/{z}/{x}/{y}.mvt`],
+          tiles: [`${API_URL}/api/regions/tiles/{z}/{x}/{y}.mvt`],
           maxzoom: 10,
         });
         m.addLayer({
           id: "countries-fill",
           type: "fill",
-          source: "countries",
+          source: SOURCE,
           "source-layer": COUNTRIES_LAYER,
-          paint: {
-            "fill-color": "#94a3b8",
-            "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], 0.3, 0.05],
-          },
+          paint: { "fill-color": "#94a3b8", "fill-opacity": hoverOpacity(0.05) },
         });
         m.addLayer({
           id: "countries-highlight",
           type: "fill",
-          source: "countries",
+          source: SOURCE,
           "source-layer": COUNTRIES_LAYER,
           filter: codeFilter([]),
           paint: { "fill-color": "#2563eb", "fill-opacity": 0.35 },
         });
         m.addLayer({
+          id: "regions-fill",
+          type: "fill",
+          source: SOURCE,
+          "source-layer": REGIONS_LAYER,
+          minzoom: REGIONS_MIN_ZOOM,
+          paint: { "fill-color": "#94a3b8", "fill-opacity": hoverOpacity(0) },
+        });
+        m.addLayer({
+          id: "regions-highlight",
+          type: "fill",
+          source: SOURCE,
+          "source-layer": REGIONS_LAYER,
+          minzoom: REGIONS_MIN_ZOOM,
+          filter: codeFilter([]),
+          paint: { "fill-color": "#7c3aed", "fill-opacity": 0.3 },
+        });
+        m.addLayer({
           id: "countries-line",
           type: "line",
-          source: "countries",
+          source: SOURCE,
           "source-layer": COUNTRIES_LAYER,
           paint: { "line-color": "#1e3a8a", "line-width": 0.6, "line-opacity": 0.5 },
         });
         m.addLayer({
-          id: "countries-selected",
+          id: "regions-line",
           type: "line",
-          source: "countries",
-          "source-layer": COUNTRIES_LAYER,
-          filter: codeFilter([]),
-          paint: { "line-color": "#f59e0b", "line-width": 3 },
+          source: SOURCE,
+          "source-layer": REGIONS_LAYER,
+          minzoom: REGIONS_MIN_ZOOM,
+          paint: { "line-color": "#1e3a8a", "line-width": 0.4, "line-opacity": 0.4 },
         });
+        for (const [id, layer] of [
+          ["countries-selected", COUNTRIES_LAYER],
+          ["regions-selected", REGIONS_LAYER],
+        ] as const) {
+          m.addLayer({
+            id,
+            type: "line",
+            source: SOURCE,
+            "source-layer": layer,
+            filter: codeFilter([]),
+            paint: { "line-color": "#f59e0b", "line-width": 3 },
+          });
+        }
 
-        let hoveredId: string | number | undefined;
+        // Regions are drawn above their country, so prefer them under the cursor.
+        const featureAt = (e: MapMouseEvent): MapGeoJSONFeature | undefined => {
+          const layers = ["regions-fill", "countries-fill"].filter((id) => m.getLayer(id));
+          return m.queryRenderedFeatures(e.point, { layers })[0];
+        };
+
+        let hovered: MapGeoJSONFeature | undefined;
         const setHover = (feature: MapGeoJSONFeature | undefined) => {
-          if (hoveredId !== undefined) {
-            m.setFeatureState({ source: "countries", sourceLayer: COUNTRIES_LAYER, id: hoveredId }, { hover: false });
+          if (hovered?.id !== undefined) {
+            m.setFeatureState(
+              { source: SOURCE, sourceLayer: hovered.sourceLayer, id: hovered.id },
+              { hover: false },
+            );
           }
-          hoveredId = feature?.id;
-          if (hoveredId !== undefined) {
-            m.setFeatureState({ source: "countries", sourceLayer: COUNTRIES_LAYER, id: hoveredId }, { hover: true });
+          hovered = feature;
+          if (feature?.id !== undefined) {
+            m.setFeatureState(
+              { source: SOURCE, sourceLayer: feature.sourceLayer, id: feature.id },
+              { hover: true },
+            );
           }
-          setHovered(feature ? (feature.properties as CountryProps) : null);
+          setHovered(feature ? (feature.properties as RegionProps) : null);
           m.getCanvas().style.cursor = feature ? "pointer" : "";
         };
 
-        m.on("mousemove", "countries-fill", (e) => setHover(e.features?.[0]));
-        m.on("mouseleave", "countries-fill", () => setHover(undefined));
-        m.on("click", "countries-fill", (e) => {
-          const props = e.features?.[0]?.properties as CountryProps | undefined;
+        m.on("mousemove", (e) => {
+          const feature = featureAt(e);
+          if (feature?.id !== hovered?.id || feature?.sourceLayer !== hovered?.sourceLayer) {
+            setHover(feature);
+          }
+        });
+        m.on("mouseout", () => setHover(undefined));
+        m.on("click", (e) => {
+          const props = featureAt(e)?.properties as RegionProps | undefined;
           if (props) {
-            onSelectRef.current(
-              props.code,
-              localized(localeRef.current, props.name_en, props.name_uk),
-            );
+            onSelectRef.current({
+              code: props.code,
+              name: localized(localeRef.current, props.name_en, props.name_uk),
+              parentCode: props.parent_code || null,
+            });
           }
         });
         setLoaded(true);
@@ -166,8 +233,11 @@ export default function WorldMap({
   useEffect(() => {
     const m = mapRef.current;
     if (!loaded || !m) return;
+    const selected = codeFilter(selectedCode ? [selectedCode] : []);
     m.setFilter("countries-highlight", codeFilter(highlightCodes));
-    m.setFilter("countries-selected", codeFilter(selectedCode ? [selectedCode] : []));
+    m.setFilter("regions-highlight", codeFilter(highlightCodes));
+    m.setFilter("countries-selected", selected);
+    m.setFilter("regions-selected", selected);
   }, [loaded, highlightCodes, selectedCode]);
 
   useEffect(() => {
@@ -175,19 +245,32 @@ export default function WorldMap({
     const MarkerClass = markerClassRef.current;
     if (!loaded || !m || !MarkerClass) return;
 
+    const features = labels?.features ?? [];
+    // Countries whose regions have their own labels: zooming in swaps the country label for them.
+    const countriesWithRegions = new Set(
+      features.filter((f) => f.properties.level === "adm1").map((f) => f.properties.parent_code),
+    );
+
     markersRef.current.forEach((marker) => marker.remove());
-    markersRef.current = (labels?.features ?? []).map((feature) => {
+    markersRef.current = features.map((feature) => {
+      const { code, text, level, dialect } = feature.properties;
       // HTML labels render every script (Hebrew, Georgian, CJK, ...) with the browser's fonts.
       const el = document.createElement("div");
-      el.textContent = feature.properties.text;
-      el.className =
-        "max-w-40 truncate rounded bg-white/90 px-1.5 py-0.5 text-xs font-semibold text-black shadow cursor-pointer";
-      el.title = feature.properties.text;
-      el.dataset.code = feature.properties.code;
+      el.textContent = text;
+      el.className = `max-w-40 truncate rounded px-1.5 py-0.5 text-xs font-semibold shadow cursor-pointer ${
+        dialect ? "bg-violet-100 text-violet-950" : "bg-white/90 text-black"
+      }`;
+      el.title = text;
+      el.dataset.code = code;
+      el.dataset.level = level;
       el.addEventListener("click", (e) => {
         e.stopPropagation();
-        const { code, name_en, name_uk } = feature.properties;
-        onSelectRef.current(code, localized(localeRef.current, name_en, name_uk));
+        const { name_en, name_uk, parent_code } = feature.properties;
+        onSelectRef.current({
+          code,
+          name: localized(localeRef.current, name_en, name_uk),
+          parentCode: parent_code,
+        });
       });
       const [lng, lat] = feature.geometry.coordinates;
       return new MarkerClass({ element: el }).setLngLat([lng, lat]).addTo(m);
@@ -196,9 +279,16 @@ export default function WorldMap({
     // Labels arrive ordered by importance; hide any label that would overlap a more
     // important one. Overlaps only change with zoom, so re-check on zoom, not on pan.
     const declutter = () => {
+      const zoomedIn = m.getZoom() >= REGIONS_MIN_ZOOM;
       const shown: DOMRect[] = [];
       for (const marker of markersRef.current) {
         const el = marker.getElement();
+        const isRegion = el.dataset.level === "adm1";
+        const replacedByRegions = !isRegion && countriesWithRegions.has(el.dataset.code ?? "");
+        if (isRegion ? !zoomedIn : zoomedIn && replacedByRegions) {
+          el.style.visibility = "hidden";
+          continue;
+        }
         el.style.visibility = "visible";
         const rect = el.getBoundingClientRect();
         const overlaps = shown.some(

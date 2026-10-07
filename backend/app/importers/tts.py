@@ -166,13 +166,13 @@ def synthesize(voice: Voice, model: Path, texts: list[str], targets: dict[str, P
             target.write_bytes(wav_to_mp3(wav_path))
 
 
-def forms_needing_audio(session: Session, variety_id: int) -> list[Form]:
+def forms_needing_audio(session: Session, variety_ids: list[int]) -> list[Form]:
     """Approved primary forms without a recorded (non-synthetic) pronunciation."""
     recorded = exists().where(Audio.form_id == Form.id, Audio.is_synthetic.is_(False))
     return list(
         session.scalars(
             select(Form).where(
-                Form.variety_id == variety_id,
+                Form.variety_id.in_(variety_ids),
                 Form.is_primary,
                 Form.status == APPROVED,
                 ~recorded,
@@ -183,10 +183,17 @@ def forms_needing_audio(session: Session, variety_id: int) -> list[Form]:
 
 def generate(session: Session, iso639_3: str) -> int:
     voice = VOICES[iso639_3]
-    variety = session.scalar(select(Variety).where(Variety.iso639_3 == iso639_3))
-    if variety is None:
+    # The language and its dialects ("ukr", "ukr-hutsul", ...) share the language's voice.
+    variety_ids = list(
+        session.scalars(
+            select(Variety.id).where(
+                (Variety.code == iso639_3) | Variety.code.startswith(f"{iso639_3}-")
+            )
+        )
+    )
+    if not variety_ids:
         return 0
-    forms = forms_needing_audio(session, variety.id)
+    forms = forms_needing_audio(session, variety_ids)
     if not forms:
         return 0
 

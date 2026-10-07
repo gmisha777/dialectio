@@ -28,8 +28,8 @@
     "unverified": "Unverified word: taken from the concept's Wikidata label or translated automatically, may be inaccurate"
   },
   "Editor": {
-    "title": "Word editor: Ukrainian",
-    "intro": "Add the Ukrainian word for each concept or review drafts (dashed border): ✓ approves, ✕ rejects. Hints show the word in other languages. IPA is optional.",
+    "title": "Word editor: {variety}",
+    "intro": "Pick a language or dialect, add the word for each concept or review drafts (dashed border): ✓ approves, ✕ rejects. For dialects, add only words that differ from the standard language; the map shows the standard word elsewhere.",
     "tokenPlaceholder": "Editor token (EDITOR_TOKEN from .env)",
     "login": "Sign in",
     "badToken": "Invalid token.",
@@ -47,7 +47,8 @@
     "allDone": "Nothing left here — all filled in.",
     "approve": "Approve “{word}”",
     "draftHint": "Draft: hidden on the site until you approve it ✓",
-    "drafts": "Awaiting review: {count}"
+    "drafts": "Awaiting review: {count}",
+    "variety": "Language or dialect"
   },
   "Word": {
     "title": "{word} in different languages — spelling and pronunciation | Dialectio",

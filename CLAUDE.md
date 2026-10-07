@@ -11,6 +11,7 @@ Full plan and decisions: [docs/plan.md](docs/plan.md). Communicate with the user
 
 ## Conventions
 - Data is organized around `Concept` (meaning), not raw word strings.
+- Varieties are identified by `Variety.code`: ISO 639-3 for languages, `<language>-<name>` for dialects (`ukr-hutsul`). Dialect territories are oblasts (`app/importers/dialects.py`); the map shows oblast labels instead of the country label from zoom 5.
 - Every imported record must keep its `Source` (name, url, license).
 - Synthetic (TTS) audio must be flagged `is_synthetic`.
 - Forms have `status`: only `approved` ones are public (search, word pages, map). `pending` drafts (source "Dialectio suggestions (draft)", loaded by `app.importers.suggestions`) wait for review in the editor. Every public query must filter on `status = 'approved'`.
@@ -22,7 +23,7 @@ Full plan and decisions: [docs/plan.md](docs/plan.md). Communicate with the user
 ## Commands
 - Start DB: `docker compose up -d db`
 - Backend (from `backend/`): `uv sync`, `uv run uvicorn app.main:app --reload`, `uv run pytest`, `uv run ruff check .`
-- Import countries (from `backend/`): `uv run python -m app.importers.natural_earth`; restart the API afterwards (country vector tiles are cached in memory)
+- Data import order (from `backend/`, all re-runnable): `natural_earth` (countries) → `natural_earth_admin1` (oblasts) → `wikidata_lexemes` → `dialects` → `suggestions` / `suggestions --machine` → `tts`, each as `uv run python -m app.importers.<name>`; restart the API after region imports (vector tiles are cached in memory)
 - Machine words (from `backend/`): `uv run python -m app.importers.suggestions --machine <iso> ...` loads `data/machine/<iso>.json`; real Wikidata data replaces them on the next import
 - Word editor: `/uk/editor`, token = `EDITOR_TOKEN` in `.env`; editor words use source "Dialectio editors" and survive Wikidata re-imports
 - Import words (from `backend/`, after countries): `uv run python -m app.importers.wikidata_lexemes` (~10 min, re-runnable); word lists and exclusions live in `backend/app/importers/data/`

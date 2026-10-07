@@ -46,6 +46,10 @@ export type Form = {
 
 export type LanguageForms = {
   variety_id: number;
+  /** "ukr", or a dialect like "ukr-hutsul" */
+  code: string;
+  kind: "language" | "dialect_group" | "dialect";
+  parent_code: string | null;
   iso639_3: string | null;
   name_en: string;
   name_uk: string | null;
@@ -55,6 +59,11 @@ export type LanguageForms = {
 
 export type LabelProps = {
   code: string;
+  /** "country", or "adm1" for first-level regions (oblasts) shown when zoomed in */
+  level: "country" | "adm1";
+  parent_code: string | null;
+  /** The label shows dialect words */
+  dialect: boolean;
   text: string;
   name_en: string;
   name_uk: string | null;

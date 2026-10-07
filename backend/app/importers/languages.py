@@ -1,6 +1,7 @@
 """Languages imported at country level (Stage 1).
 
-`countries` are Natural Earth ADM0_A3 codes where the language is the main/official one.
+`countries` are Natural Earth ADM0_A3 codes where the language is the main/official one,
+or ISO 3166-2 codes of first-level regions for regional languages (e.g. Crimean Tatar).
 `lemma_tag` is the Wikidata lemma language tag to use (filters out other scripts).
 """
 
@@ -92,8 +93,8 @@ LANGUAGES: tuple[Language, ...] = (
     Language("Q9051", "ltz", "lb", "Luxembourgish", "люксембурзька", ("LUX",)),
     Language("Q7026", "cat", "ca", "Catalan", "каталанська", ("AND",)),
     Language("Q397", "lat", "la", "Latin", "латина", ("VAT",)),
-    # Indigenous language of Ukraine; country level until regions (Crimea) are on the map
-    Language("Q33357", "crh", "crh", "Crimean Tatar", "кримськотатарська", ("UKR",)),
+    # Indigenous language of Ukraine, mapped to Crimea and Sevastopol
+    Language("Q33357", "crh", "crh", "Crimean Tatar", "кримськотатарська", ("UA-43", "UA-40")),
     # Neighbouring regions
     Language("Q9252", "kaz", "kk", "Kazakh", "казахська", ("KAZ",)),
     Language("Q9292", "aze", "az", "Azerbaijani", "азербайджанська", ("AZE",)),

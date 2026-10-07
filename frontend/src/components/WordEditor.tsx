@@ -12,9 +12,22 @@ import {
   EditorError,
   type EditorForm,
   listConcepts,
+  listVarieties,
+  type EditorVariety,
 } from "@/lib/editor";
 
-const LANG = "ukr";
+const DEFAULT_VARIETY = "ukr";
+
+/** Ukrainian and its dialects first (the project's focus), then other languages by name. */
+function sortVarieties(varieties: EditorVariety[], locale: string): EditorVariety[] {
+  const focus = (v: EditorVariety) => (v.code === "ukr" || v.code.startsWith("ukr-") ? 0 : 1);
+  return [...varieties].sort(
+    (a, b) =>
+      focus(a) - focus(b) ||
+      Number(a.kind === "dialect") - Number(b.kind === "dialect") ||
+      localized(locale, a.name_en, a.name_uk).localeCompare(localized(locale, b.name_en, b.name_uk)),
+  );
+}
 
 const isApproved = (form: EditorForm) => form.status === "approved";
 const TOKEN_KEY = "dialectio.editorToken";
@@ -38,10 +51,12 @@ function saveToken(token: string) {
 function ConceptRow({
   concept,
   token,
+  variety,
   onChange,
 }: {
   concept: EditorConcept;
   token: string;
+  variety: string;
   onChange: (forms: EditorForm[]) => void;
 }) {
   const t = useTranslations("Editor");
@@ -59,7 +74,7 @@ function ConceptRow({
     try {
       const form = await addForm(token, {
         concept_id: concept.id,
-        iso639_3: LANG,
+        variety,
         spelling,
         ipa: ipa.trim() || null,
       });
@@ -202,6 +217,8 @@ export default function WordEditor() {
   const [error, setError] = useState<string | null>(null);
   const [onlyMissing, setOnlyMissing] = useState(true);
   const [filter, setFilter] = useState("");
+  const [varieties, setVarieties] = useState<EditorVariety[]>([]);
+  const [variety, setVariety] = useState(DEFAULT_VARIETY);
 
   useEffect(() => {
     // localStorage is only available in the browser, after hydration.
@@ -212,7 +229,10 @@ export default function WordEditor() {
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
-    listConcepts(token, LANG)
+    listVarieties(token)
+      .then((result) => !cancelled && setVarieties(result))
+      .catch(() => {});
+    listConcepts(token, variety)
       .then((result) => {
         if (cancelled) return;
         setConcepts(result);
@@ -232,7 +252,7 @@ export default function WordEditor() {
     return () => {
       cancelled = true;
     };
-  }, [token, t]);
+  }, [token, variety, t]);
 
   const login = (e: FormEvent) => {
     e.preventDefault();
@@ -253,7 +273,15 @@ export default function WordEditor() {
 
   return (
     <main className="mx-auto min-h-0 w-full max-w-5xl flex-1 overflow-y-auto p-4">
-      <h1 className="text-2xl font-semibold">{t("title")}</h1>
+      <h1 className="text-2xl font-semibold">
+        {t("title", {
+          variety: localized(
+            locale,
+            varieties.find((v) => v.code === variety)?.name_en ?? variety,
+            varieties.find((v) => v.code === variety)?.name_uk ?? null,
+          ),
+        })}
+      </h1>
       <p className="mb-4 text-sm opacity-70">{t("intro")}</p>
 
       {(!token || error) && (
@@ -276,6 +304,22 @@ export default function WordEditor() {
       {concepts && (
         <>
           <div className="sticky top-0 z-10 flex flex-wrap items-center gap-4 bg-[var(--background)] py-2">
+            <select
+              value={variety}
+              onChange={(e) => {
+                setConcepts(null);
+                setVariety(e.target.value);
+              }}
+              aria-label={t("variety")}
+              className="rounded border border-black/15 bg-transparent px-2 py-1 dark:border-white/20"
+            >
+              {sortVarieties(varieties, locale).map((v) => (
+                <option key={v.code} value={v.code}>
+                  {v.kind === "dialect" ? "— " : ""}
+                  {localized(locale, v.name_en, v.name_uk)}
+                </option>
+              ))}
+            </select>
             <span className="font-medium">
               {t("progress", { done, total: concepts.length })}
             </span>
@@ -307,6 +351,7 @@ export default function WordEditor() {
                 key={concept.id}
                 concept={concept}
                 token={token}
+                variety={variety}
                 onChange={(forms) =>
                   setConcepts((all) =>
                     all ? all.map((c) => (c.id === concept.id ? { ...c, forms } : c)) : all,

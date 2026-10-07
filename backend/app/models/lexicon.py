@@ -65,6 +65,9 @@ class Variety(Base):
     # language / dialect_group / dialect
     kind: Mapped[str] = mapped_column(String(20), default="language")
     iso639_3: Mapped[str | None] = mapped_column(String(3), index=True)
+    # Stable identifier used in URLs, data files and the editor: the ISO 639-3 code for
+    # languages, "<language>-<name>" for dialects (e.g. "ukr-hutsul").
+    code: Mapped[str] = mapped_column(String(40), unique=True)
     glottocode: Mapped[str | None] = mapped_column(String(8), unique=True)
     wikidata_id: Mapped[str | None] = mapped_column(String(20), unique=True)
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("variety.id"))

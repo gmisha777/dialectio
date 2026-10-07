@@ -11,15 +11,15 @@ router = APIRouter(prefix="/api/regions", tags=["regions"])
 MAX_ZOOM = 10
 TILE_EXTENT = 4096
 
-# Mapbox Vector Tile with one layer "countries". Geometry is simplified to about half a pixel
-# at the tile's zoom and clipped to Web Mercator's latitude range (poles can't be projected).
-COUNTRY_TILE = text("""
+# Mapbox Vector Tile layer of one region level. Geometry is simplified to about half a pixel at
+# the tile's zoom and clipped to Web Mercator's latitude range (poles can't be projected).
+TILE_LAYER = """
     WITH bounds AS (
         SELECT ST_TileEnvelope(:z, :x, :y) AS merc,
                ST_Transform(ST_TileEnvelope(:z, :x, :y), 4326) AS geo
     ),
     features AS (
-        SELECT r.id, r.code, r.name_en, r.name_uk,
+        SELECT r.id, r.code, r.name_en, r.name_uk, parent.code AS parent_code,
                ST_AsMVTGeom(
                    ST_Transform(
                        ST_ClipByBox2D(
@@ -27,13 +27,18 @@ COUNTRY_TILE = text("""
                            ST_MakeEnvelope(-180, -85.0511, 180, 85.0511, 4326)),
                        3857),
                    bounds.merc, :extent, 64, true) AS geom
-        FROM region r, bounds
-        WHERE r.level = 'country' AND r.geom && bounds.geo
+        FROM region r
+        LEFT JOIN region parent ON parent.id = r.parent_id, bounds
+        WHERE r.level = '{level}' AND r.geom && bounds.geo
     )
-    SELECT ST_AsMVT(features, 'countries', :extent, 'geom', 'id')
+    SELECT ST_AsMVT(features, '{layer}', :extent, 'geom', 'id')
     FROM features
     WHERE geom IS NOT NULL
-""")
+"""
+COUNTRY_TILE = text(TILE_LAYER.format(level="country", layer="countries"))
+REGION_TILE = text(TILE_LAYER.format(level="adm1", layer="regions"))
+# First-level regions (oblasts) are only drawn from this zoom on.
+REGIONS_MIN_ZOOM = 4
 
 
 def tolerance_degrees(z: int) -> float:
@@ -53,13 +58,16 @@ def render_tile(session: Session, z: int, x: int, y: int) -> bytes:
         return tile
     params = {"z": z, "x": x, "y": y, "tolerance": tolerance_degrees(z), "extent": TILE_EXTENT}
     tile = bytes(session.execute(COUNTRY_TILE, params).scalar_one())
+    if z >= REGIONS_MIN_ZOOM:
+        # A vector tile is a list of layers, so two encoded tiles concatenate into one.
+        tile += bytes(session.execute(REGION_TILE, params).scalar_one())
     if len(_tile_cache) < TILE_CACHE_SIZE:
         _tile_cache[key] = tile
     return tile
 
 
-@router.get("/countries/{z}/{x}/{y}.mvt")
-def country_tile(
+@router.get("/tiles/{z}/{x}/{y}.mvt")
+def region_tile(
     session: Annotated[Session, Depends(get_session)],
     z: Annotated[int, Path(ge=0, le=MAX_ZOOM)],
     x: Annotated[int, Path(ge=0)],

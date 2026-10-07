@@ -1,10 +1,10 @@
-import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session, selectinload
 
+from app.api.labels import build_labels
 from app.api.schemas import (
     AudioOut,
     ConceptDetail,
@@ -51,35 +51,6 @@ SEARCH = text("""
     ORDER BY concept_id, score DESC,
              variety_id = (SELECT id FROM variety WHERE iso639_3 = :prefer) DESC NULLS LAST,
              is_primary DESC
-""")
-
-# Label points: the region's curated label point (falls back to a point inside the region),
-# with rank (lower = more important) so the map can hide less important overlapping labels.
-LABELS = text("""
-    SELECT json_build_object(
-        'type', 'FeatureCollection',
-        'features', coalesce(json_agg(json_build_object(
-            'type', 'Feature',
-            'properties', json_build_object(
-                'code', code, 'text', spellings, 'name_en', name_en, 'name_uk', name_uk,
-                'rank', rank),
-            'geometry', ST_AsGeoJSON(point, 3)::json
-        ) ORDER BY rank, area DESC), '[]'::json)
-    )::text
-    FROM (
-        SELECT r.code, r.name_en, r.name_uk,
-               coalesce(r.label_point, ST_PointOnSurface(r.geom)) AS point,
-               coalesce(r.label_rank, 10) AS rank,
-               ST_Area(r.geom) AS area,
-               -- main languages first: varieties are created in configuration order
-               -- (e.g. Ukrainian before Crimean Tatar on Ukraine)
-               string_agg(f.spelling, ' / ' ORDER BY f.variety_id) AS spellings
-        FROM form f
-        JOIN variety_region vr ON vr.variety_id = f.variety_id
-        JOIN region r ON r.id = vr.region_id
-        WHERE f.concept_id = :concept_id AND f.is_primary AND f.status = 'approved'
-        GROUP BY r.id
-    ) labelled
 """)
 
 
@@ -163,6 +134,7 @@ def build_detail(session: Session, concept: Concept) -> ConceptDetail:
             selectinload(Form.audio),
             selectinload(Form.source),
             selectinload(Form.variety).selectinload(Variety.regions),
+            selectinload(Form.variety).selectinload(Variety.parent),
         )
         .order_by(Form.variety_id, Form.is_primary.desc(), Form.spelling)
     ).all()
@@ -174,6 +146,9 @@ def build_detail(session: Session, concept: Concept) -> ConceptDetail:
         if entry is None:
             entry = languages[variety.id] = LanguageForms(
                 variety_id=variety.id,
+                code=variety.code,
+                kind=variety.kind,
+                parent_code=variety.parent.code if variety.parent else None,
                 iso639_3=variety.iso639_3,
                 name_en=variety.name_en,
                 name_uk=variety.name_uk,
@@ -194,10 +169,22 @@ def build_detail(session: Session, concept: Concept) -> ConceptDetail:
             )
         )
 
-    labels = json.loads(session.execute(LABELS, {"concept_id": concept.id}).scalar_one())
+    labels = build_labels(session, concept.id)
     summary = ConceptSummary.model_validate(concept)
     return ConceptDetail(
         **summary.model_dump(),
-        languages=sorted(languages.values(), key=lambda lang: lang.name_en),
+        languages=sort_languages(list(languages.values())),
         labels=labels,
     )
+
+
+def sort_languages(languages: list[LanguageForms]) -> list[LanguageForms]:
+    """Languages by English name; each language's dialects right after it, by name."""
+    roots = {lang.code: lang.code.split("-")[0] for lang in languages}
+    names = {lang.code: lang.name_en for lang in languages}
+
+    def key(lang: LanguageForms) -> tuple[str, bool, str]:
+        root = roots[lang.code]
+        return (names.get(root, lang.name_en), lang.code != root, lang.name_en)
+
+    return sorted(languages, key=key)

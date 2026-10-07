@@ -1,9 +1,9 @@
 """Load generated words for concepts that have no word in a language.
 
-    uv run python -m app.importers.suggestions [iso639_3]            (default: ukr)
-        data/suggestions_<iso>.json -> drafts (status "pending") reviewed in the editor
-    uv run python -m app.importers.suggestions --machine <iso> [...]
-        data/machine/<iso>.json -> public right away, marked unverified ("≈" on the site)
+    uv run python -m app.importers.suggestions [code]            (default: ukr)
+        data/suggestions_<code>.json -> drafts (status "pending") reviewed in the editor
+    uv run python -m app.importers.suggestions --machine <code> [...]
+        data/machine/<code>.json -> public right away, marked unverified ("≈" on the site)
 
 Files map Wikidata items to words: {"<Wikidata item>": "<word>"}. Concepts that already
 have any word in that language are skipped, so real data always wins.
@@ -24,25 +24,23 @@ from app.models import APPROVED, PENDING, Concept, Form, Variety
 
 def main(*args: str) -> None:
     if args and args[0] == "--machine":
-        for iso639_3 in args[1:]:
-            load(iso639_3, machine=True)
+        for code in args[1:]:
+            load(code, machine=True)
     else:
         load(args[0] if args else "ukr", machine=False)
 
 
-def load(iso639_3: str, machine: bool) -> None:
+def load(code: str, machine: bool) -> None:
     path = (
-        DATA_DIR / "machine" / f"{iso639_3}.json"
-        if machine
-        else DATA_DIR / f"suggestions_{iso639_3}.json"
+        DATA_DIR / "machine" / f"{code}.json" if machine else DATA_DIR / f"suggestions_{code}.json"
     )
     suggestions: dict[str, str] = json.loads(path.read_text(encoding="utf-8"))
     suggestions.pop("_comment", None)
 
     with SessionLocal() as session:
-        variety = session.scalar(select(Variety).where(Variety.iso639_3 == iso639_3))
+        variety = session.scalar(select(Variety).where(Variety.code == code))
         if variety is None:
-            raise SystemExit(f"Unknown language {iso639_3}")
+            raise SystemExit(f"Unknown variety {code}")
         source = upsert_source(
             session,
             MACHINE_SOURCE_NAME if machine else SUGGESTION_SOURCE_NAME,
@@ -82,7 +80,7 @@ def load(iso639_3: str, machine: bool) -> None:
         session.commit()
 
     kind = "unverified machine words" if machine else "draft words for review"
-    print(f"{iso639_3}: added {added} {kind}, skipped {skipped} concepts that have a word.")
+    print(f"{code}: added {added} {kind}, skipped {skipped} concepts that have a word.")
 
 
 if __name__ == "__main__":

@@ -52,6 +52,10 @@ class FormOut(BaseModel):
 
 class LanguageForms(BaseModel):
     variety_id: int
+    code: str
+    # "language", "dialect_group" or "dialect"
+    kind: str
+    parent_code: str | None
     iso639_3: str | None
     name_en: str
     name_uk: str | None

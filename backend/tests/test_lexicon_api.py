@@ -66,7 +66,7 @@ def test_concept_detail_404() -> None:
 
 
 def test_country_vector_tile() -> None:
-    response = client.get("/api/regions/countries/0/0/0.mvt")
+    response = client.get("/api/regions/tiles/0/0/0.mvt")
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/vnd.mapbox-vector-tile"
     assert len(response.content) > 1000
@@ -75,7 +75,7 @@ def test_country_vector_tile() -> None:
 
 
 def test_vector_tile_out_of_range() -> None:
-    assert client.get("/api/regions/countries/1/2/0.mvt").status_code == 404
+    assert client.get("/api/regions/tiles/1/2/0.mvt").status_code == 404
 
 
 def test_labels_use_curated_point_and_rank() -> None:
@@ -96,3 +96,34 @@ def test_concept_by_slug_and_listing() -> None:
 
     slugs = {c["slug"] for c in client.get("/api/concepts").json()}
     assert {"water", "bark-q38681", "bark-q184453"} <= slugs
+
+
+def test_region_labels_show_dialect_words() -> None:
+    from sqlalchemy import select
+
+    from app.db.session import SessionLocal
+    from app.models import Concept, Form, Variety
+
+    with SessionLocal() as session:
+        concept = session.scalar(select(Concept).where(Concept.wikidata_id == "Q283"))
+        hutsul = session.scalar(select(Variety).where(Variety.code == "ukr-hutsul"))
+        form = Form(concept=concept, variety=hutsul, spelling="тестводиця", is_primary=True)
+        session.add(form)
+        session.commit()
+        form_id = form.id
+    try:
+        labels = {
+            f["properties"]["code"]: f["properties"]
+            for f in client.get("/api/concepts/by-slug/water").json()["labels"]["features"]
+        }
+        # Hutsul is mapped to Ivano-Frankivsk, Chernivtsi and Transcarpathia
+        assert labels["UA-26"]["text"] == "тестводиця"
+        assert labels["UA-26"]["dialect"] and labels["UA-26"]["parent_code"] == "UKR"
+        # other oblasts inherit the standard Ukrainian word; Crimea adds Crimean Tatar
+        assert labels["UA-63"]["text"] == "вода" and not labels["UA-63"]["dialect"]
+        assert labels["UA-43"]["text"].split(" / ")[0] == "вода"
+        assert len(labels["UA-43"]["text"].split(" / ")) == 2
+    finally:
+        with SessionLocal() as session:
+            session.delete(session.get(Form, form_id))
+            session.commit()

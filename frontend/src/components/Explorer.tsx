@@ -6,7 +6,7 @@ import { useMemo, useRef, useState } from "react";
 import ConceptPanel from "@/components/ConceptPanel";
 import LocaleSwitcher from "@/components/LocaleSwitcher";
 import SearchBox from "@/components/SearchBox";
-import WorldMap from "@/components/WorldMap";
+import WorldMap, { type SelectedRegion } from "@/components/WorldMap";
 import { Link } from "@/i18n/navigation";
 import { type ConceptDetail, getConcept, localized, type SearchHit } from "@/lib/api";
 
@@ -20,7 +20,7 @@ export default function Explorer({
   const tWord = useTranslations("Word");
   const locale = useLocale();
   const [concept, setConcept] = useState<ConceptDetail | null>(initialConcept);
-  const [region, setRegion] = useState<{ code: string; name: string } | null>(null);
+  const [region, setRegion] = useState<SelectedRegion | null>(null);
   const [error, setError] = useState(false);
   const requestRef = useRef<AbortController | null>(null);
 
@@ -69,15 +69,14 @@ export default function Explorer({
             highlightCodes={highlightCodes}
             labels={concept?.labels ?? null}
             selectedCode={region?.code ?? null}
-            onSelectRegion={(code, name) => setRegion({ code, name })}
+            onSelectRegion={setRegion}
           />
         </section>
         <div className="border-black/10 md:w-96 md:border-l dark:border-white/15">
           {concept ? (
             <ConceptPanel
               concept={concept}
-              regionCode={region?.code ?? null}
-              regionName={region?.name ?? null}
+              region={region}
               onClearRegion={() => setRegion(null)}
             />
           ) : (

@@ -43,12 +43,22 @@ async function request<T>(token: string, path: string, init: RequestInit = {}): 
   return (response.status === 204 ? undefined : await response.json()) as T;
 }
 
-export const listConcepts = (token: string, lang: string) =>
-  request<EditorConcept[]>(token, `/concepts?lang=${lang}`);
+export type EditorVariety = {
+  code: string;
+  kind: "language" | "dialect";
+  name_en: string;
+  name_uk: string | null;
+  parent_code: string | null;
+};
+
+export const listVarieties = (token: string) => request<EditorVariety[]>(token, "/varieties");
+
+export const listConcepts = (token: string, variety: string) =>
+  request<EditorConcept[]>(token, `/concepts?variety=${encodeURIComponent(variety)}`);
 
 export const addForm = (
   token: string,
-  form: { concept_id: number; iso639_3: string; spelling: string; ipa: string | null },
+  form: { concept_id: number; variety: string; spelling: string; ipa: string | null },
 ) => request<EditorForm>(token, "/forms", { method: "POST", body: JSON.stringify(form) });
 
 export const approveForm = (token: string, id: number) =>

@@ -25,8 +25,9 @@ EDITOR_SOURCE_LICENSE = "All rights reserved (Dialectio)"
 SUGGESTION_SOURCE_NAME = "Dialectio suggestions (draft)"
 OWN_SOURCES = (EDITOR_SOURCE_NAME, SUGGESTION_SOURCE_NAME)
 
-# Languages shown as hints next to each concept in the editor
-HINT_LANGUAGES = ("eng", "pol", "deu", "rus")
+# Varieties shown as hints next to each concept in the editor (standard Ukrainian first,
+# useful when editing dialects)
+HINT_LANGUAGES = ("ukr", "eng", "pol", "deu", "rus")
 
 
 def require_editor(x_editor_token: Annotated[str | None, Header()] = None) -> None:
@@ -62,9 +63,17 @@ class EditorConcept(BaseModel):
     forms: list[EditorForm]
 
 
+class EditorVariety(BaseModel):
+    code: str
+    kind: str
+    name_en: str
+    name_uk: str | None
+    parent_code: str | None
+
+
 class NewForm(BaseModel):
     concept_id: int
-    iso639_3: str = Field(min_length=3, max_length=3)
+    variety: str = Field(min_length=2, max_length=40)
     spelling: str = Field(min_length=1, max_length=200)
     ipa: str | None = Field(default=None, max_length=200)
 
@@ -75,10 +84,10 @@ class NewForm(BaseModel):
         return value or None
 
 
-def get_variety(session: Session, iso639_3: str) -> Variety:
-    variety = session.scalar(select(Variety).where(Variety.iso639_3 == iso639_3))
+def get_variety(session: Session, code: str) -> Variety:
+    variety = session.scalar(select(Variety).where(Variety.code == code))
     if variety is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown language {iso639_3}")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown variety {code}")
     return variety
 
 
@@ -120,14 +129,35 @@ def get_own_form(session: Session, form_id: int) -> Form:
     return form
 
 
+@router.get("/varieties")
+def list_varieties(session: SessionDep) -> list[EditorVariety]:
+    """Languages and dialects that can be edited (dialect groups only group dialects)."""
+    varieties = session.scalars(
+        select(Variety)
+        .where(Variety.kind != "dialect_group")
+        .options(selectinload(Variety.parent))
+        .order_by(Variety.code)
+    )
+    return [
+        EditorVariety(
+            code=v.code,
+            kind=v.kind,
+            name_en=v.name_en,
+            name_uk=v.name_uk,
+            parent_code=v.parent.code if v.parent else None,
+        )
+        for v in varieties
+    ]
+
+
 @router.get("/concepts")
 def list_concepts(
-    session: SessionDep, lang: Annotated[str, Query(min_length=3, max_length=3)] = "ukr"
+    session: SessionDep, variety: Annotated[str, Query(min_length=2, max_length=40)] = "ukr"
 ) -> list[EditorConcept]:
-    variety = get_variety(session, lang)
+    edited = get_variety(session, variety)
     hint_varieties = {
-        v.id: v.iso639_3
-        for v in session.scalars(select(Variety).where(Variety.iso639_3.in_(HINT_LANGUAGES)))
+        v.id: v.code
+        for v in session.scalars(select(Variety).where(Variety.code.in_(HINT_LANGUAGES)))
     }
     concepts = session.scalars(
         select(Concept)
@@ -144,7 +174,7 @@ def list_concepts(
         }
         hints = {lang: primary[lang] for lang in HINT_LANGUAGES if lang in primary}
         forms = sorted(
-            (f for f in concept.forms if f.variety_id == variety.id),
+            (f for f in concept.forms if f.variety_id == edited.id),
             key=lambda f: (f.status != APPROVED, not f.is_primary, f.spelling),
         )
         result.append(
@@ -166,7 +196,7 @@ def list_concepts(
 def add_form(session: SessionDep, payload: NewForm) -> EditorForm:
     if session.get(Concept, payload.concept_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Concept not found")
-    variety = get_variety(session, payload.iso639_3)
+    variety = get_variety(session, payload.variety)
 
     existing = session.scalars(
         select(Form).where(Form.concept_id == payload.concept_id, Form.variety_id == variety.id)

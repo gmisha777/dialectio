@@ -25,7 +25,7 @@ def approved_forms(concept: dict) -> list[dict]:
 
 
 def concepts(lang: str = "ukr") -> list[dict]:
-    response = client.get("/api/editor/concepts", params={"lang": lang}, headers=auth())
+    response = client.get("/api/editor/concepts", params={"variety": lang}, headers=auth())
     assert response.status_code == 200
     return response.json()
 
@@ -49,7 +49,7 @@ def test_lists_concepts_with_hints() -> None:
 
 def test_add_and_delete_word() -> None:
     missing = next(c for c in concepts() if not approved_forms(c))
-    payload = {"concept_id": missing["id"], "iso639_3": "ukr", "spelling": "  тестслово "}
+    payload = {"concept_id": missing["id"], "variety": "ukr", "spelling": "  тестслово "}
 
     created = client.post("/api/editor/forms", json=payload, headers=auth())
     assert created.status_code == 201

@@ -412,7 +412,8 @@ def remove_stale_concepts(session: Session, current: set[str]) -> tuple[int, lis
 
 
 def upsert_varieties(session: Session) -> dict[str, Variety]:
-    regions = {r.code: r for r in session.scalars(select(Region).where(Region.level == "country"))}
+    # Languages can be mapped to countries or to first-level regions (e.g. Crimean Tatar).
+    regions = {r.code: r for r in session.scalars(select(Region))}
     varieties: dict[str, Variety] = {}
     for lang in LANGUAGES:
         variety = session.scalar(select(Variety).where(Variety.wikidata_id == lang.wikidata_id))
@@ -423,6 +424,7 @@ def upsert_varieties(session: Session) -> dict[str, Variety]:
         variety.name_uk = lang.name_uk
         variety.kind = "language"
         variety.iso639_3 = lang.iso639_3
+        variety.code = lang.iso639_3
         missing = [code for code in lang.countries if code not in regions]
         if missing:
             print(f"  warning: no region for {lang.name_en}: {missing}")
