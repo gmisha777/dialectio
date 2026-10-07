@@ -21,8 +21,9 @@ from urllib.parse import unquote
 
 import httpx2
 from sqlalchemy import delete, select, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
+from app.api.lexicon import MACHINE_SOURCE_NAME
 from app.db.session import SessionLocal
 from app.importers.common import upsert_source
 from app.importers.languages import LANGUAGES, Language
@@ -509,15 +510,23 @@ def main() -> None:
 
         # Words from other sources (e.g. our editors) are kept: don't duplicate their spelling
         # and don't add a second primary form next to theirs.
+        # Unverified machine words are only placeholders: real data replaces them.
         other_forms: dict[tuple[int, int], list[Form]] = defaultdict(list)
-        for form in session.scalars(select(Form)):
-            other_forms[(form.concept_id, form.variety_id)].append(form)
+        machine_forms: dict[tuple[int, int], list[Form]] = defaultdict(list)
+        for form in session.scalars(select(Form).options(selectinload(Form.source))):
+            target = machine_forms if form.source.name == MACHINE_SOURCE_NAME else other_forms
+            target[(form.concept_id, form.variety_id)].append(form)
+
+        def drop_machine_words(concept_id: int, variety_id: int) -> None:
+            for form in machine_forms.pop((concept_id, variety_id), []):
+                session.delete(form)
 
         form_count = audio_count = 0
         for (qid, lang_qid), by_id in lexemes.items():
             if qid not in concepts:
                 continue
             existing = other_forms[(concepts[qid].id, varieties[lang_qid].id)]
+            drop_machine_words(concepts[qid].id, varieties[lang_qid].id)
             has_primary = any(f.is_primary for f in existing)
             label = item_labels.get((qid, lang_qid))
             primary = pick_primary(by_id.values(), label, qid)
@@ -581,6 +590,7 @@ def main() -> None:
                 if not label_as_word(label, english, lang.iso639_3):
                     continue
                 label = label_word(label, english_label, lang.iso639_3)
+                drop_machine_words(concept.id, variety.id)
                 session.add(
                     Form(
                         concept=concept,

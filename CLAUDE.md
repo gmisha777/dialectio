@@ -23,6 +23,7 @@ Full plan and decisions: [docs/plan.md](docs/plan.md). Communicate with the user
 - Start DB: `docker compose up -d db`
 - Backend (from `backend/`): `uv sync`, `uv run uvicorn app.main:app --reload`, `uv run pytest`, `uv run ruff check .`
 - Import countries (from `backend/`): `uv run python -m app.importers.natural_earth`; restart the API afterwards (country vector tiles are cached in memory)
+- Machine words (from `backend/`): `uv run python -m app.importers.suggestions --machine <iso> ...` loads `data/machine/<iso>.json`; real Wikidata data replaces them on the next import
 - Word editor: `/uk/editor`, token = `EDITOR_TOKEN` in `.env`; editor words use source "Dialectio editors" and survive Wikidata re-imports
 - Import words (from `backend/`, after countries): `uv run python -m app.importers.wikidata_lexemes` (~10 min, re-runnable); word lists and exclusions live in `backend/app/importers/data/`
 - TTS (from `backend/`): `uv tool install piper-tts` once, then `uv run python -m app.importers.tts [iso ...]` after every Wikidata import and after approving words (only approved primary words without recordings get synthetic audio). Piper is GPL: run it only as an external program, never import it. Only voices whose license allows commercial use go into `VOICES`.

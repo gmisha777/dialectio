@@ -20,7 +20,8 @@ from app.models import APPROVED, Concept, Form, Variety
 router = APIRouter(prefix="/api", tags=["lexicon"])
 
 # Sources whose words nobody has checked; shown with an "approximate" mark on the site.
-UNVERIFIED_SOURCES = {"Wikidata item labels", "Dialectio machine drafts (unverified)"}
+MACHINE_SOURCE_NAME = "Dialectio machine drafts (unverified)"
+UNVERIFIED_SOURCES = {"Wikidata item labels", MACHINE_SOURCE_NAME}
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
